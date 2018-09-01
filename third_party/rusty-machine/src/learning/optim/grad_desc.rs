@@ -96,6 +96,91 @@ impl<M: Optimizable> OptimAlgorithm<M> for GradientDesc {
     }
 }
 
+/// Mini-Batch Gradient Descent algorithm
+#[derive(Clone, Copy, Debug)]
+pub struct MiniBatchGradientDesc {
+    /// The step-size for the gradient descent steps.
+    alpha: f64,
+    /// The number of iterations to run.
+    iters: usize,
+    /// The mini-batch size.
+    batchsize: usize,
+}
+
+/// The default mini-batch gradient descent algorithm.
+///
+/// The defaults are:
+///
+/// - alpha = 0.3
+/// - iters = 100
+impl Default for MiniBatchGradientDesc {
+    fn default() -> MiniBatchGradientDesc {
+        MiniBatchGradientDesc {
+            alpha: 0.3,
+            iters: 100,
+            batchsize: 50,
+        }
+    }
+}
+
+impl MiniBatchGradientDesc {
+    /// Construct a gradient descent algorithm.
+    ///
+    /// Requires the step size and iteration count
+    /// to be specified.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rusty_machine::learning::optim::grad_desc::GradientDesc;
+    ///
+    /// let gd = GradientDesc::new(0.3, 10000);
+    /// ```
+    pub fn new(alpha: f64, iters: usize, batchsize: usize) -> MiniBatchGradientDesc {
+        assert!(alpha > 0f64,
+                "The step size (alpha) must be greater than 0.");
+
+        MiniBatchGradientDesc {
+            alpha: alpha,
+            iters: iters,
+            batchsize: batchsize,
+        }
+    }
+}
+
+impl<M: Optimizable> OptimAlgorithm<M> for MiniBatchGradientDesc {
+    fn optimize(&self,
+                model: &M,
+                start: &[f64],
+                inputs: &M::Inputs,
+                targets: &M::Targets)
+                -> Vec<f64> {
+
+        // Create the initial optimal parameters
+        let mut optimizing_val = Vector::new(start.to_vec());
+        // We should add the sample with replacement here.
+
+        // The cost at the start of each iteration
+        let mut start_iter_cost = 0f64;
+
+        for _ in 0..self.iters {
+            // Compute the cost and gradient for the current parameters
+            let (cost, grad) = model.compute_grad(optimizing_val.data(), inputs, targets);
+
+            // Early stopping
+            if (start_iter_cost - cost).abs() < LEARNING_EPS {
+                break;
+            } else {
+                // Update the optimal parameters using gradient descent
+                optimizing_val = &optimizing_val - Vector::new(grad) * self.alpha;
+                // Update the latest cost
+                start_iter_cost = cost;
+            }
+        }
+        optimizing_val.into_vec()
+    }
+}
+
 /// Stochastic Gradient Descent algorithm.
 ///
 /// Uses basic momentum to control the learning rate.
