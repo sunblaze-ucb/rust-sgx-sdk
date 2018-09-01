@@ -1,3 +1,13 @@
+# How to run the samplecode dpmlrust
+
+`$ docker pull baiduxlab/sgx-rust`
+`$ docker run -v /your/path/to/rust-sgx:/root/sgx -ti --device /dev/isgx baiduxlab/sgx-rust`
+`$ export SGX_MODE=SW` 
+`$ cd samplecode/dpml-sgd`
+`$ make`
+`$ cd bin`
+`$ ./app`
+
 # Rust SGX SDK
 Rust SGX SDK helps developers write Intel SGX applications in Rust programming language. [[Paper pdf]](documents/ccsp17.pdf)
 
