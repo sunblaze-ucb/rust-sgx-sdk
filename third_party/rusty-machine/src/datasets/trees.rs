@@ -1,3 +1,5 @@
+use std::vec::Vec;
+
 use rulinalg::matrix::Matrix;
 use rulinalg::vector::Vector;
 

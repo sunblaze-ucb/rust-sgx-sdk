@@ -113,6 +113,7 @@
 #[macro_use]
 extern crate sgx_tstd as std;
 
+#[macro_use]
 extern crate rulinalg;
 extern crate num as libnum;
 
@@ -141,6 +142,7 @@ pub mod learning {
     pub mod gmm;
     pub mod lin_reg;
     pub mod logistic_reg;
+    pub mod dp_logistic_reg;
     pub mod k_means;
     pub mod nnet;
     pub mod gp;

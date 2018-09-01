@@ -4,6 +4,7 @@
 //! within the learning modules.
 
 use rand::{Rng, thread_rng};
+use rand::distributions::{Sample, Normal};
 use std::vec::*;
 /// ```
 /// use rusty_machine::learning::toolkit::rand_utils;
@@ -107,6 +108,29 @@ pub fn in_place_fisher_yates<T>(arr: &mut [T]) {
     }
 }
 
+/// Generate a vector obeying normal distribution.
+///
+/// # Examples
+///
+/// ```
+/// use rusty_machine::learning::toolkit::rand_utils;
+///
+/// // Generate a noise vector
+/// let mut noise = normal_vector(0.1, 10)
+/// ```
+pub fn normal_vector(std_dev: f64, len: usize) -> Vec<f64> {
+    let mut rng = thread_rng();
+    let mut normal = Normal::new(0.0, std_dev);
+    let mut res = Vec::with_capacity(1000);
+
+    for _ in 0..len {
+        res.push(normal.sample(&mut rng));
+    }
+
+    res
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,3 +166,4 @@ mod tests {
         }
     }
 }
+

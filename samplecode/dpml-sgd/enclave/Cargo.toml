@@ -1,0 +1,24 @@
+[package]
+name = "Machinelearningsampleenclave"
+version = "1.0.0"
+authors = [
+    "Lun Wang <wanglun@berkeley.edu>",
+    "Baidu"
+]
+
+[lib]
+name = "machinelearningsampleenclave"
+crate-type = ["staticlib"]
+
+[features]
+default = []
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies]
+sgx_types = { path = "../../../sgx_types" }
+sgx_trts = { path = "../../../sgx_trts" }
+sgx_tstd = { path = "../../../sgx_tstd" }
+sgx_rand = { path = "../../../sgx_rand" }
+sgx_tcrypto = { path = "../../../sgx_tcrypto" }
+
+[dependencies]
+rusty-machine = { path = "../../../third_party/rusty-machine", features = ["datasets"] }

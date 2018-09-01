@@ -39,6 +39,7 @@ use linalg::Vector;
 use learning::{LearningResult, SupModel};
 use learning::toolkit::activ_fn::{ActivationFunc, Sigmoid};
 use learning::toolkit::cost_fn::{CostFunc, CrossEntropyError};
+use learning::toolkit::rand_utils::normal_vector;
 use learning::optim::grad_desc::GradientDesc;
 use learning::optim::{OptimAlgorithm, Optimizable};
 use learning::error::Error;
@@ -47,25 +48,25 @@ use learning::error::Error;
 ///
 /// Contains option for optimized parameter.
 #[derive(Debug)]
-pub struct LogisticRegressor<A>
-    where A: OptimAlgorithm<BaseLogisticRegressor>
+pub struct DPLogisticRegressor<A>
+    where A: OptimAlgorithm<DPBaseLogisticRegressor>
 {
-    base: BaseLogisticRegressor,
+    base: DPBaseLogisticRegressor,
     alg: A,
 }
 
 /// Constructs a default Logistic Regression model
 /// using standard gradient descent.
-impl Default for LogisticRegressor<GradientDesc> {
-    fn default() -> LogisticRegressor<GradientDesc> {
-        LogisticRegressor {
-            base: BaseLogisticRegressor::new(),
+impl Default for DPLogisticRegressor<GradientDesc> {
+    fn default() -> DPLogisticRegressor<GradientDesc> {
+        DPLogisticRegressor {
+            base: DPBaseLogisticRegressor::new(),
             alg: GradientDesc::default(),
         }
     }
 }
 
-impl<A: OptimAlgorithm<BaseLogisticRegressor>> LogisticRegressor<A> {
+impl<A: OptimAlgorithm<DPBaseLogisticRegressor>> DPLogisticRegressor<A> {
     /// Constructs untrained logistic regression model.
     ///
     /// # Examples
@@ -77,9 +78,9 @@ impl<A: OptimAlgorithm<BaseLogisticRegressor>> LogisticRegressor<A> {
     /// let gd = GradientDesc::default();
     /// let mut logistic_mod = LogisticRegressor::new(gd);
     /// ```
-    pub fn new(alg: A) -> LogisticRegressor<A> {
-        LogisticRegressor {
-            base: BaseLogisticRegressor::new(),
+    pub fn new(alg: A) -> DPLogisticRegressor<A> {
+        DPLogisticRegressor {
+            base: DPBaseLogisticRegressor::new(),
             alg: alg,
         }
     }
@@ -92,8 +93,8 @@ impl<A: OptimAlgorithm<BaseLogisticRegressor>> LogisticRegressor<A> {
     }
 }
 
-impl<A> SupModel<Matrix<f64>, Vector<f64>> for LogisticRegressor<A>
-    where A: OptimAlgorithm<BaseLogisticRegressor>
+impl<A> SupModel<Matrix<f64>, Vector<f64>> for DPLogisticRegressor<A>
+    where A: OptimAlgorithm<DPBaseLogisticRegressor>
 {
     /// Train the logistic regression model.
     ///
@@ -131,9 +132,7 @@ impl<A> SupModel<Matrix<f64>, Vector<f64>> for LogisticRegressor<A>
         if let Some(v) = self.base.parameters() {
             let ones = Matrix::<f64>::ones(inputs.rows(), 1);
             let full_inputs = ones.hcat(inputs);
-            let res = (full_inputs * v);
-            println!("{:?}", res);
-            Ok(res)
+            Ok((full_inputs * v).apply(&Sigmoid::func))
         } else {
             Err(Error::new_untrained())
         }
@@ -144,19 +143,19 @@ impl<A> SupModel<Matrix<f64>, Vector<f64>> for LogisticRegressor<A>
 ///
 /// This struct cannot be instantianated and is used internally only.
 #[derive(Debug)]
-pub struct BaseLogisticRegressor {
+pub struct DPBaseLogisticRegressor {
     parameters: Option<Vector<f64>>,
 }
 
-impl BaseLogisticRegressor {
+impl DPBaseLogisticRegressor {
     /// Construct a new BaseLogisticRegressor
     /// with parameters set to None.
-    fn new() -> BaseLogisticRegressor {
-        BaseLogisticRegressor { parameters: None }
+    fn new() -> DPBaseLogisticRegressor {
+        DPBaseLogisticRegressor { parameters: None }
     }
 }
 
-impl BaseLogisticRegressor {
+impl DPBaseLogisticRegressor {
     /// Returns a reference to the parameters.
     fn parameters(&self) -> Option<&Vector<f64>> {
         self.parameters.as_ref()
@@ -176,7 +175,7 @@ impl BaseLogisticRegressor {
 /// X<sup>T</sup>(h(Xb) - y) / m
 ///
 /// where `h` is the sigmoid function and `b` the underlying model parameters.
-impl Optimizable for BaseLogisticRegressor {
+impl Optimizable for DPBaseLogisticRegressor {
     type Inputs = Matrix<f64>;
     type Targets = Vector<f64>;
 
@@ -191,7 +190,21 @@ impl Optimizable for BaseLogisticRegressor {
 
         let cost = CrossEntropyError::cost(&outputs, targets);
         let grad = (inputs.transpose() * (outputs - targets)) / (inputs.rows() as f64);
+        let sample_num = targets.size() as f64;
+        // This is hard-coded in gradient descent codes.
+        let iters = 100.0;
+        // We do not have regularization term here so this is 1 for LR.
+        let L = 1.0;
+        // We now hard-code the eps and delta here, will change this to the arguments later.
+        let eps = 1.0;
+        let delta = 0.00001;
+        let std_dev = 4.0*L*(iters*((1.0/delta) as f64).log2()).sqrt()/(sample_num*eps);
+        let noise = Vector::new(normal_vector(std_dev, params.len()));
+        println!("{:?}", grad);
+        println!("{:?}", noise);
+        let noisy_grad = noise+grad;
+        println!("{:?}", noisy_grad);
 
-        (cost, grad.into_vec())
+        (cost, noisy_grad.into_vec())
     }
 }
