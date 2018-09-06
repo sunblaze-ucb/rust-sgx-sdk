@@ -51,6 +51,18 @@ enclave {
                                          size_t targets_len,
                                          [out, size=params_len, count=8] double* output_params); 
 
+        public sgx_status_t update_model([in, size=model_len, count=8] const double* model,
+                                         [in, size=model_len, count=8] const double* gradient,
+                                         size_t model_len,
+                                         double alpha,
+                                         [out, size=model_len, count=8] double* updated_model);
+
+        public sgx_status_t predict([in, size=model_len, count=8] const double* model,
+                                    size_t model_len,
+                                    [in, size=samples_len, count=8] const double* samples,
+                                    size_t samples_len,
+                                    [out, size=prediction_len, count=8] double* prediction,
+                                    size_t prediction_len);
         /* core ECALL function that do the dp learning. */
         public sgx_status_t sample_main();
 

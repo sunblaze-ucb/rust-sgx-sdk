@@ -29,6 +29,9 @@
 extern crate sgx_types;
 extern crate sgx_urts;
 extern crate dirs;
+#[macro_use]
+extern crate rulinalg;
+
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
@@ -36,6 +39,144 @@ use std::io::{Read, Write};
 use std::fs;
 use std::path;
 use std::mem;
+use std::fmt::Debug;
+use std::vec::Vec;
+
+use rulinalg::matrix::{Axes, Matrix, MatrixSlice, MatrixSliceMut, BaseMatrix, BaseMatrixMut};
+use rulinalg::vector::Vector;
+use rulinalg::norm;
+
+/// Dataset container
+#[derive(Clone, Debug)]
+pub struct Dataset<D, T> where D: Clone + Debug, T: Clone + Debug {
+
+    data: D,
+    target: T
+}
+
+impl<D, T> Dataset<D, T> where D: Clone + Debug, T: Clone + Debug {
+
+    /// Returns explanatory variable (features)
+    pub fn data(&self) -> &D {
+        &self.data
+    }
+
+    /// Returns objective variable (target)
+    pub fn target(&self) -> &T {
+        &self.target
+    }
+}
+
+pub fn load() -> Dataset<Matrix<f64>, Vec<f64>> {
+    let data: Matrix<f64> = matrix![5.1, 3.5, 1.4, 0.2;
+                                    4.9, 3.0, 1.4, 0.2;
+                                    4.7, 3.2, 1.3, 0.2;
+                                    4.6, 3.1, 1.5, 0.2;
+                                    5.0, 3.6, 1.4, 0.2;
+                                    5.4, 3.9, 1.7, 0.4;
+                                    4.6, 3.4, 1.4, 0.3;
+                                    5.0, 3.4, 1.5, 0.2;
+                                    4.4, 2.9, 1.4, 0.2;
+                                    4.9, 3.1, 1.5, 0.1;
+                                    5.4, 3.7, 1.5, 0.2;
+                                    4.8, 3.4, 1.6, 0.2;
+                                    4.8, 3.0, 1.4, 0.1;
+                                    4.3, 3.0, 1.1, 0.1;
+                                    5.8, 4.0, 1.2, 0.2;
+                                    5.7, 4.4, 1.5, 0.4;
+                                    5.4, 3.9, 1.3, 0.4;
+                                    5.1, 3.5, 1.4, 0.3;
+                                    5.7, 3.8, 1.7, 0.3;
+                                    5.1, 3.8, 1.5, 0.3;
+                                    5.4, 3.4, 1.7, 0.2;
+                                    5.1, 3.7, 1.5, 0.4;
+                                    4.6, 3.6, 1.0, 0.2;
+                                    5.1, 3.3, 1.7, 0.5;
+                                    4.8, 3.4, 1.9, 0.2;
+                                    5.0, 3.0, 1.6, 0.2;
+                                    5.0, 3.4, 1.6, 0.4;
+                                    5.2, 3.5, 1.5, 0.2;
+                                    5.2, 3.4, 1.4, 0.2;
+                                    4.7, 3.2, 1.6, 0.2;
+                                    4.8, 3.1, 1.6, 0.2;
+                                    5.4, 3.4, 1.5, 0.4;
+                                    5.2, 4.1, 1.5, 0.1;
+                                    5.5, 4.2, 1.4, 0.2;
+                                    4.9, 3.1, 1.5, 0.1;
+                                    5.0, 3.2, 1.2, 0.2;
+                                    5.5, 3.5, 1.3, 0.2;
+                                    4.9, 3.1, 1.5, 0.1;
+                                    4.4, 3.0, 1.3, 0.2;
+                                    5.1, 3.4, 1.5, 0.2;
+                                    5.0, 3.5, 1.3, 0.3;
+                                    4.5, 2.3, 1.3, 0.3;
+                                    4.4, 3.2, 1.3, 0.2;
+                                    5.0, 3.5, 1.6, 0.6;
+                                    5.1, 3.8, 1.9, 0.4;
+                                    4.8, 3.0, 1.4, 0.3;
+                                    5.1, 3.8, 1.6, 0.2;
+                                    4.6, 3.2, 1.4, 0.2;
+                                    5.3, 3.7, 1.5, 0.2;
+                                    5.0, 3.3, 1.4, 0.2;
+                                    7.0, 3.2, 4.7, 1.4;
+                                    6.4, 3.2, 4.5, 1.5;
+                                    6.9, 3.1, 4.9, 1.5;
+                                    5.5, 2.3, 4.0, 1.3;
+                                    6.5, 2.8, 4.6, 1.5;
+                                    5.7, 2.8, 4.5, 1.3;
+                                    6.3, 3.3, 4.7, 1.6;
+                                    4.9, 2.4, 3.3, 1.0;
+                                    6.6, 2.9, 4.6, 1.3;
+                                    5.2, 2.7, 3.9, 1.4;
+                                    5.0, 2.0, 3.5, 1.0;
+                                    5.9, 3.0, 4.2, 1.5;
+                                    6.0, 2.2, 4.0, 1.0;
+                                    6.1, 2.9, 4.7, 1.4;
+                                    5.6, 2.9, 3.6, 1.3;
+                                    6.7, 3.1, 4.4, 1.4;
+                                    5.6, 3.0, 4.5, 1.5;
+                                    5.8, 2.7, 4.1, 1.0;
+                                    6.2, 2.2, 4.5, 1.5;
+                                    5.6, 2.5, 3.9, 1.1;
+                                    5.9, 3.2, 4.8, 1.8;
+                                    6.1, 2.8, 4.0, 1.3;
+                                    6.3, 2.5, 4.9, 1.5;
+                                    6.1, 2.8, 4.7, 1.2;
+                                    6.4, 2.9, 4.3, 1.3;
+                                    6.6, 3.0, 4.4, 1.4;
+                                    6.8, 2.8, 4.8, 1.4;
+                                    6.7, 3.0, 5.0, 1.7;
+                                    6.0, 2.9, 4.5, 1.5;
+                                    5.7, 2.6, 3.5, 1.0;
+                                    5.5, 2.4, 3.8, 1.1;
+                                    5.5, 2.4, 3.7, 1.0;
+                                    5.8, 2.7, 3.9, 1.2;
+                                    6.0, 2.7, 5.1, 1.6;
+                                    5.4, 3.0, 4.5, 1.5;
+                                    6.0, 3.4, 4.5, 1.6;
+                                    6.7, 3.1, 4.7, 1.5;
+                                    6.3, 2.3, 4.4, 1.3;
+                                    5.6, 3.0, 4.1, 1.3;
+                                    5.5, 2.5, 4.0, 1.3;
+                                    5.5, 2.6, 4.4, 1.2;
+                                    6.1, 3.0, 4.6, 1.4;
+                                    5.8, 2.6, 4.0, 1.2;
+                                    5.0, 2.3, 3.3, 1.0;
+                                    5.6, 2.7, 4.2, 1.3;
+                                    5.7, 3.0, 4.2, 1.2;
+                                    5.7, 2.9, 4.2, 1.3;
+                                    6.2, 2.9, 4.3, 1.3;
+                                    5.1, 2.5, 3.0, 1.1;
+                                    5.7, 2.8, 4.1, 1.3];
+
+    let target: Vec<f64> = vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                  1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+                                  1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+
+    Dataset{ data: data,
+             target: target }
+}
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 static ENCLAVE_TOKEN: &'static str = "enclave.token";
@@ -54,7 +195,12 @@ extern {
     fn sample_main (eid: sgx_enclave_id_t, retval: *mut sgx_status_t) -> sgx_status_t;
 
     fn add_normal_noise (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, std_dev: f64, in_ptr: *const f64, len: usize, out_ptr: *mut f64) -> sgx_status_t;
+
     fn compute_grad (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, in_params: *const f64,  params_len: usize, inputs: *const f64, inputs_len: usize, targets: *const f64, targets_len: usize, out_params: *mut f64) -> sgx_status_t;
+
+    fn update_model (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, model: *const f64, gradient: *const f64, model_len: usize, alpha: f64, updated_model: *mut f64) -> sgx_status_t;
+
+    fn predict (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, model: *const f64, model_len: usize, samples: *const f64, samples_len: usize, prediction: *mut f64, prediction_len: usize);
 }
 
 fn init_enclave() -> SgxResult<SgxEnclave> {
@@ -139,7 +285,95 @@ fn main() {
 
     let mut retval = sgx_status_t::SGX_SUCCESS; 
 
-    println!("Test Add Normal Noise...");
+    println!("Test DP-SGD on Iris Dataset...");
+    let batch_size = 50;
+
+    println!("Load Iris Data...");
+    let dataset = load();
+    let raw_samples = dataset.data();
+    let ones = Matrix::<f64>::ones(raw_samples.rows(), 1);
+    let samples = ones.hcat(raw_samples);
+    let samples_ptr = samples.as_ptr();
+    let targets = dataset.target();
+    let sample_num = samples.rows();
+    let feature_num = samples.cols();
+
+    println!("Train Gradient on Batches...");
+    let iters = 100;
+    let alpha = 0.1;
+    // This should be changed to dynamic later. We can use vector.capacity to allocate a large array and use a small portion as slice, or use ones to do this.
+    let mut in_params: [f64; 5] = [0.0; 5];
+    let in_params_ptr = &in_params as *const f64;
+    let updated_model_ptr = unsafe{
+        mem::transmute::<&[f64; 5], *mut f64>(&in_params)
+    };
+    let (batch1, batch2) = samples.split_at(batch_size, Axes::Row);
+    let batch1_ptr = batch1.as_ptr();
+    let batch2_ptr = batch2.as_ptr();
+    let mut iter = targets.chunks(batch_size);
+    let targets1_ptr = iter.next().unwrap().as_ptr();
+    let targets2_ptr = iter.next().unwrap().as_ptr();
+    let mut out_params: [f64; 5] = [0.0; 5];
+    let out_params_ptr = unsafe{
+        mem::transmute::<&[f64; 5], *mut f64>(&out_params)
+    };
+    let mut model: [f64; 5] = [0.0; 5];
+    let model_ptr = &model as *const f64;
+    for _ in 0..iters/2 {
+        for batch_iter in 0..2 {
+            let mut batch_ptr = batch2_ptr;
+            let mut target_ptr = targets2_ptr;
+            if batch_iter == 0 {
+                batch_ptr = batch1_ptr;
+                target_ptr = targets1_ptr;
+            }
+            let sgx_ret = unsafe{
+                compute_grad(enclave.geteid(),
+                             &mut retval,
+                             in_params_ptr,
+                             feature_num,
+                             batch_ptr,
+                             feature_num*batch_size,
+                             target_ptr,
+                             batch_size,
+                             out_params_ptr)
+            };
+            println!("{:?}", out_params);
+            model.clone_from(&in_params);
+            let sgx_ret = unsafe{
+                update_model(enclave.geteid(),
+                             &mut retval,
+                             model_ptr,
+                             out_params_ptr,
+                             feature_num,
+                             alpha,
+                             updated_model_ptr)
+            };
+            println!("{:?}", in_params);
+        }
+    }
+
+    let mut result: [f64; 100] = [0.0; 100];
+    let result_ptr = unsafe{
+        mem::transmute::<&[f64; 100], *mut f64>(&result)
+    };
+    let sgx_ret = unsafe{
+        predict(enclave.geteid(),
+                &mut retval,
+                model_ptr,
+                feature_num,
+                samples_ptr,
+                feature_num*100,
+                result_ptr,
+                100)
+    };
+    for i in result.into_iter() {
+        println!("{}", i);
+    }
+    let classes = result.into_iter().map(|x|if *x > 0.5 {return 1.0;} else {return 0.0;}).collect::<Vec<_>>();
+    let matching = classes.into_iter().zip(targets.into_iter()).filter(|(a, b)| a==*b ).count();
+    println!("Correct Number is {}", matching);
+    /*println!("Test Add Normal Noise...");
     let in_vec: [f64; 4] = [0.0; 4];
     let mut out_vec: [f64; 4] = [0.0; 4];
     let in_ptr = &in_vec as *const f64;
@@ -154,32 +388,52 @@ fn main() {
                          4, 
                          out_ptr)
     };
-    println!("{:?}", out_vec);
+    println!("{:?}", out_vec);*/
 
-    println!("Test Compute Gradient");
-    let in_params: [f64; 50] = [0.0; 50];
-    let inputs: [f64; 2500] = [0.0; 2500];
-    let targets: [f64; 50] = [0.0; 50];
-    let mut out_params: [f64; 50] = [0.0; 50];
+    /*println!("Test Compute Gradient");
+    let in_params: [f64; 30] = [0.0; 30];
+    let inputs: [f64; 900] = [0.0; 900];
+    let targets: [f64; 30] = [0.0; 30];
+    let mut out_params: [f64; 30] = [0.0; 30];
     let in_params_ptr = &in_params as *const f64;
     let inputs_ptr = &inputs as *const f64;
     let targets_ptr = &inputs as *const f64;
     let out_params_ptr = unsafe{
-        mem::transmute::<&[f64; 50], *mut f64>(&out_params)
+        mem::transmute::<&[f64; 30], *mut f64>(&out_params)
     };
     let sgx_ret = unsafe{
         compute_grad(enclave.geteid(),
                      &mut retval,
                      in_params_ptr, 
-                     50, 
+                     30, 
                      inputs_ptr, 
-                     2500, 
+                     900, 
                      targets_ptr, 
-                     50, 
+                     30, 
                      out_params_ptr)
     };
+    println!("{:?}", out_params);*/
 
-    println!("Testing Crypto Primitives...");
+    /*println!("Test Update Model");
+    let model: [f64; 30] = [1.0; 30];
+    let gradient: [f64; 30] = [0.5; 30];
+    let mut updated_model: [f64; 30] = [10.0; 30];
+    let model_ptr = &model as *const f64;
+    let gradient_ptr = &gradient as *const f64;
+    let updated_model_ptr = unsafe{
+        mem::transmute::<&[f64; 30], *mut f64>(&updated_model)
+    };
+    let sgx_ret = unsafe{
+        update_model(enclave.geteid(),
+                     &mut retval,
+                     model_ptr,
+                     gradient_ptr,
+                     30,
+                     updated_model_ptr)
+    };
+    println!("{:?}", updated_model);*/
+
+    /*println!("Testing Crypto Primitives...");
 
     let str: [u8; 3] = [97, 98, 99];
     let str_ptr = &str as *const u8;
@@ -218,9 +472,9 @@ fn main() {
     };
     println!("[+] aes-gcm-128 returned from enclave!");
 
-    println!("{:?}", aes_gcm_ciphertext);
+    println!("{:?}", aes_gcm_ciphertext);*/
 
-    let result = unsafe {
+    /*let result = unsafe {
         sample_main(enclave.geteid(),
                     &mut retval)
     };
@@ -233,7 +487,7 @@ fn main() {
         }
     }
 
-    println!("[+] say_something success...");
+    println!("[+] say_something success...");*/
     
     enclave.destroy();
 }

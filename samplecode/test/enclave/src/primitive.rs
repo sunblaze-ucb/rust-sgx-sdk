@@ -178,23 +178,6 @@ fn compute_grad(in_params: *const f64,
 
     let cost = CrossEntropyError::cost(&outputs, targets_vec);
     let mut grad = (inputs_mat.transpose() * (outputs - targets_vec)) / (inputs_mat.rows() as f64);
-    
-    /*let sample_num = targets_vec.size() as f64;
-    // This is hard-coded in gradient descent codes.
-    let iters = 100.0;
-    // We do not have regularization term here so this is 1 for LR.
-    let L = 1.0;
-    // We now hard-code the eps and delta here, will change this to the arguments later.
-    let eps = 1.0;
-    let delta = 0.00001;
-    let std_dev = 4.0*L*(iters*((1.0/delta) as f64).log2()).sqrt()/(sample_num*eps);
-    let noise = Vector::new(normal_vector(std_dev, params.len()));
-    println!("{:?}", grad);
-    println!("{:?}", noise);
-    let noisy_grad = noise+grad;
-    println!("{:?}", noisy_grad);
-
-    (cost, noisy_grad.into_vec())*/
 
     unsafe{
         ptr::copy_nonoverlapping(grad.mut_data().as_ptr(),
@@ -202,6 +185,49 @@ fn compute_grad(in_params: *const f64,
                                  params_len);
     }
 
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C"
+fn update_model(model: *const f64,
+                gradient: *const f64,
+                model_len: usize,
+                alpha: f64,
+                updated_model: *mut f64)
+                -> sgx_status_t {
+    println!("Updating Model");
+    let model_slice = unsafe { slice::from_raw_parts(model, model_len)};
+    let model_vec = &Vector::new(model_slice.to_vec());
+    let grad_slice = unsafe { slice::from_raw_parts(gradient, model_len)};
+    let grad_vec = &Vector::new(grad_slice.to_vec());
+    let mut updated_vec = model_vec - grad_vec * alpha;
+    unsafe{
+        ptr::copy_nonoverlapping(updated_vec.mut_data().as_ptr(),
+                                 updated_model,
+                                 model_len);
+    }
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C"
+fn predict(model: *const f64, 
+           model_len: usize, 
+           samples: *const f64, 
+           samples_len: usize, 
+           prediction: *mut f64, 
+           prediction_len: usize) -> sgx_status_t {
+    let model_slice = unsafe { slice::from_raw_parts(model, model_len)};
+    let model_vec = &Vector::new(model_slice.to_vec());
+    let samples_slice = unsafe { slice::from_raw_parts(samples, samples_len)};
+    let samples_mat = &Matrix::new(prediction_len, model_len, samples_slice);
+    let mut result = (samples_mat * model_vec).apply(&Sigmoid::func);
+    unsafe{
+        ptr::copy_nonoverlapping(result.mut_data().as_ptr(),
+                                 prediction,
+                                 prediction_len);
+    };
     sgx_status_t::SGX_SUCCESS
 }
 
