@@ -1,8 +1,10 @@
 use sgx_types::*;
+use sgx_tcrypto::*;
 use std::vec::*;
 use std::ptr;
 use std::slice;
 use std::fmt::Debug;
+use std::mem;
 
 use rand::{Rng, thread_rng};
 use rand::distributions::{Sample, Normal, IndependentSample};
@@ -15,6 +17,8 @@ use rusty_machine::learning::SupModel;
 use rusty_machine::learning::logistic_reg::LogisticRegressor;
 use rusty_machine::learning::dp_logistic_reg::DPLogisticRegressor;
 use rusty_machine::datasets::iris;
+
+use crypto::{aes_gcm_128_encrypt, aes_gcm_128_decrypt};
 
 /// Logarithm for applying within cost function.
 fn ln(x: f64) -> f64 {
@@ -134,6 +138,51 @@ fn normal_vector(std_dev: f64, len: usize) -> Vector<f64> {
     }
 
     Vector::from(res)
+}
+
+// Test decrypt functions
+#[no_mangle]
+pub extern "C"
+fn decrypt_encrypt(key: &[u8;16], 
+                   ciphertext: *const u8, 
+                   text_len: usize, 
+                   iv: &[u8;12], 
+                   mac: & [u8;16]) 
+                   -> sgx_status_t {
+    println!("Try using aes_gcm_decrypt");
+    let ciphertext_slice = unsafe { slice::from_raw_parts(ciphertext, text_len*8) };
+    let mut plaintext: [f64;250] = [0.0;250];
+    let mut plaintext_ptr = unsafe {
+        mem::transmute::<&[f64;250], *mut u8>(&plaintext)
+    };
+    let mut plaintext_slice = unsafe { Vec::from_raw_parts(plaintext_ptr, text_len*8, text_len*8) };
+    let aad_array: [u8; 0] = [0; 0];
+    let d_result = rsgx_rijndael128GCM_decrypt(key,
+                                               &ciphertext_slice,
+                                               iv,
+                                               &aad_array,
+                                               mac,
+                                               &mut plaintext_slice);        mem::forget(plaintext_slice);
+    for i in 0..20 {
+        println!("{}", plaintext[i]);
+    }
+    let plaintext_slice = unsafe { slice::from_raw_parts(plaintext_ptr, text_len*8)};
+    let mut ciphertext_vec: Vec<u8> = vec![0; text_len*8];
+    let ciphertext_slice = &mut ciphertext_vec[..];
+    let mut mac_array: [u8; 16] = [0; 16];
+    let e_result = rsgx_rijndael128GCM_encrypt(key,
+                                               &plaintext_slice,
+                                               iv,
+                                               &aad_array,
+                                               ciphertext_slice,
+                                               &mut mac_array);
+    for i in 0..10 {
+        println!("{}", ciphertext_slice[i]);
+    }
+    for i in 0..16 {
+        println!("{}", mac_array[i]);
+    }
+    sgx_status_t::SGX_SUCCESS
 }
 
 // We need to change f64 to u8 after adding crypto things.

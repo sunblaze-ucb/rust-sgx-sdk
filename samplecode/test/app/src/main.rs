@@ -201,6 +201,8 @@ extern {
     fn update_model (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, model: *const f64, gradient: *const f64, model_len: usize, alpha: f64, updated_model: *mut f64) -> sgx_status_t;
 
     fn predict (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, model: *const f64, model_len: usize, samples: *const f64, samples_len: usize, prediction: *mut f64, prediction_len: usize);
+
+    fn decrypt_encrypt (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, key: &[u8;16], ciphertext: *const u8, text_len: usize, iv: &[u8;12], mac: &[u8;16]);
 }
 
 fn init_enclave() -> SgxResult<SgxEnclave> {
@@ -293,6 +295,7 @@ fn main() {
     let raw_samples = dataset.data();
     let ones = Matrix::<f64>::ones(raw_samples.rows(), 1);
     let samples = ones.hcat(raw_samples);
+
     let samples_ptr = samples.as_ptr();
     let targets = dataset.target();
     let sample_num = samples.rows();
@@ -308,8 +311,8 @@ fn main() {
         mem::transmute::<&[f64; 5], *mut f64>(&in_params)
     };
     let (batch1, batch2) = samples.split_at(batch_size, Axes::Row);
-    let batch1_ptr = batch1.as_ptr();
-    let batch2_ptr = batch2.as_ptr();
+    //let batch1_ptr = batch1.as_ptr();
+    //let batch2_ptr = batch2.as_ptr();
     let mut iter = targets.chunks(batch_size);
     let targets1_ptr = iter.next().unwrap().as_ptr();
     let targets2_ptr = iter.next().unwrap().as_ptr();
@@ -319,7 +322,56 @@ fn main() {
     };
     let mut model: [f64; 5] = [0.0; 5];
     let model_ptr = &model as *const f64;
-    for _ in 0..iters/2 {
+
+    println!("[+] Starting aes-gcm-128 encrypt calculation");
+    let batch1_ptr = unsafe {
+        mem::transmute::<*const f64, *const u8>(batch1.as_ptr())
+    };
+    let batch2_ptr = unsafe {
+        mem::transmute::<*const f64, *const u8>(batch2.as_ptr())
+    };
+    let aes_gcm_key: [u8;16] = [0;16];
+    let aes_gcm_iv: [u8;12] = [0;12];
+    let mut cipher1: [u8;2000] = [0;2000];
+    let mut cipher2: [u8;2000] = [0;2000];
+    let cipher1_ptr = unsafe{
+        mem::transmute::<&[u8;2000], *mut u8>(&cipher1)
+    };
+    let cipher2_ptr = unsafe{
+        mem::transmute::<&[u8;2000], *mut u8>(&cipher2)
+    };
+    let mut aes_gcm_mac: [u8;16] = [0;16];
+
+    println!("[+] aes-gcm-128 args prepared!");
+    let sgx_ret = unsafe{
+        aes_gcm_128_encrypt(enclave.geteid(),
+                            &mut retval,
+                            &aes_gcm_key,
+                            batch1_ptr,
+                            2000,
+                            &aes_gcm_iv,
+                            cipher1_ptr,
+                            &mut aes_gcm_mac)
+    };
+    for i in 0..20 {
+        println!("{}", cipher1[i]);
+    }
+    for i in 0..16 {
+        println!("{}", aes_gcm_mac[i]);
+    }
+    println!("[+] aes-gcm-128 returned from enclave!");
+    let sgx_ret = unsafe{
+        decrypt_encrypt(enclave.geteid(),
+                &mut retval,
+                &aes_gcm_key,
+                cipher1_ptr,
+                250,
+                &aes_gcm_iv,
+                &aes_gcm_mac)
+    };
+    println!("Return from decrypt_encrypt");
+
+    /*for _ in 0..iters/2 {
         for batch_iter in 0..2 {
             let mut batch_ptr = batch2_ptr;
             let mut target_ptr = targets2_ptr;
@@ -373,6 +425,9 @@ fn main() {
     let classes = result.into_iter().map(|x|if *x > 0.5 {return 1.0;} else {return 0.0;}).collect::<Vec<_>>();
     let matching = classes.into_iter().zip(targets.into_iter()).filter(|(a, b)| a==*b ).count();
     println!("Correct Number is {}", matching);
+    */
+
+
     /*println!("Test Add Normal Noise...");
     let in_vec: [f64; 4] = [0.0; 4];
     let mut out_vec: [f64; 4] = [0.0; 4];
