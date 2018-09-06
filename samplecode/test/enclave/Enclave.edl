@@ -39,9 +39,13 @@ enclave {
 
         /* ECALL functions of machine learning primitives. */
         public sgx_status_t add_normal_noise(double std_dev,
-                                             [in, size=len, count=8] const double* in_ptr,
+                                             [in, size=len, count=8] const uint8_t* in_ptr,
                                              size_t len,
-                                             [out, size=len, count=8] double* out_ptr);
+                                             [out, size=len, count=8] uint8_t* out_ptr,
+                                             [in] uint8_t key[16],
+                                             [in] uint8_t iv[12],
+                                             [in] uint8_t in_mac[16],
+                                             [out] uint8_t out_mac[16]);
 
         public sgx_status_t compute_grad([in, size=params_len, count=8] const double* in_params,
                                          size_t params_len,

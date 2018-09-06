@@ -194,7 +194,7 @@ extern {
 
     fn sample_main (eid: sgx_enclave_id_t, retval: *mut sgx_status_t) -> sgx_status_t;
 
-    fn add_normal_noise (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, std_dev: f64, in_ptr: *const f64, len: usize, out_ptr: *mut f64) -> sgx_status_t;
+    fn add_normal_noise (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, std_dev: f64, in_ptr: *const u8, len: usize, out_ptr: *mut u8, key: &[u8;16], iv: &[u8;12], in_mac: &[u8;16], out_mac: &mut [u8;16]) -> sgx_status_t;
 
     fn compute_grad (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, in_params: *const f64,  params_len: usize, inputs: *const f64, inputs_len: usize, targets: *const f64, targets_len: usize, out_params: *mut f64) -> sgx_status_t;
 
@@ -287,7 +287,7 @@ fn main() {
 
     let mut retval = sgx_status_t::SGX_SUCCESS; 
 
-    println!("Test DP-SGD on Iris Dataset...");
+    /*println!("Test DP-SGD on Iris Dataset...");
     let batch_size = 50;
 
     println!("Load Iris Data...");
@@ -370,6 +370,7 @@ fn main() {
                 &aes_gcm_mac)
     };
     println!("Return from decrypt_encrypt");
+    */
 
     /*for _ in 0..iters/2 {
         for batch_iter in 0..2 {
@@ -427,23 +428,67 @@ fn main() {
     println!("Correct Number is {}", matching);
     */
 
-
-    /*println!("Test Add Normal Noise...");
-    let in_vec: [f64; 4] = [0.0; 4];
-    let mut out_vec: [f64; 4] = [0.0; 4];
-    let in_ptr = &in_vec as *const f64;
-    let out_ptr = unsafe{
-        mem::transmute::<&[f64; 4], *mut f64>(&out_vec)
+    println!("Test Add Normal Noise...");
+    println!("Encrypting...");
+    let in_vec: [f64; 5] = [1.0, 2.0, 3.0, 4.0, 5.0];
+    let in_ptr = unsafe {
+        mem::transmute::<&[f64; 5], *const u8>(&in_vec)
     };
+    let aes_gcm_key: [u8;16] = [0; 16];
+    let aes_gcm_iv: [u8;12] = [0; 12];
+    let mut aes_gcm_ciphertext: [u8;40] = [0;40];
+    let ciphertext_ptr = unsafe{
+        mem::transmute::<&[u8;40], *mut u8>(&aes_gcm_ciphertext)
+    };
+    let mut aes_gcm_mac: [u8;16] = [0;16];
+    let sgx_ret = unsafe{
+        aes_gcm_128_encrypt(enclave.geteid(),
+                            &mut retval,
+                            &aes_gcm_key,
+                            in_ptr,
+                            40,
+                            &aes_gcm_iv,
+                            ciphertext_ptr,
+                            &mut aes_gcm_mac)
+    };
+    println!("Encrypted");
+    println!("Adding Noise...");
+    let mut out_vec: [f64; 5] = [0.0; 5];
+    let out_ptr = unsafe{
+        mem::transmute::<&[f64; 5], *mut u8>(&out_vec)
+    };
+    let mut out_mac: [u8;16] = [0;16];
     let sgx_ret = unsafe{
         add_normal_noise(enclave.geteid(),
                          &mut retval,
                          1.0, 
-                         in_ptr, 
-                         4, 
-                         out_ptr)
+                         ciphertext_ptr, 
+                         5, 
+                         out_ptr,
+                         &aes_gcm_key,
+                         &aes_gcm_iv,
+                         &aes_gcm_mac,
+                         &mut out_mac)
     };
-    println!("{:?}", out_vec);*/
+    println!("{:?}", out_vec);
+    println!("Noise added");
+    println!("Decrypting...");
+    let mut decrypted_vec: [f64; 5] = [1.0, 2.0, 3.0, 4.0, 5.0];
+    let decrypted_ptr = unsafe {
+        mem::transmute::<&[f64; 5], *mut u8>(&decrypted_vec)
+    };
+    let sgx_ret = unsafe{
+        aes_gcm_128_decrypt(enclave.geteid(),
+                            &mut retval,
+                            &aes_gcm_key,
+                            out_ptr,
+                            40,
+                            &aes_gcm_iv,
+                            &out_mac,
+                            decrypted_ptr)
+    };
+    println!("{:?}", decrypted_vec);
+    println!("Decrypted");
 
     /*println!("Test Compute Gradient");
     let in_params: [f64; 30] = [0.0; 30];

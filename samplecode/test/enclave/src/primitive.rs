@@ -190,18 +190,56 @@ fn decrypt_encrypt(key: &[u8;16],
 #[no_mangle]
 pub extern "C"
 fn add_normal_noise(std_dev: f64, 
-                    in_ptr: *mut f64, 
+                    in_ptr: *mut u8, 
                     len: usize, 
-                    out_ptr: *mut f64) 
+                    out_ptr: *mut u8,
+                    key: &[u8;16],
+                    iv: &[u8;12],
+                    in_mac: &[u8;16],
+                    out_mac: &mut [u8;16])
                     -> sgx_status_t {
+
     println!("Adding normal noise...");
-    let in_slice = unsafe { slice::from_raw_parts(in_ptr, len)};
-    let mut in_vector = Vector::new(in_slice)+normal_vector(std_dev, len); 
+
+    println!("[+] Decrypting data...");
+    let ciphertext_slice = unsafe { slice::from_raw_parts(in_ptr, len*8) };
+    let mut plaintext_vec: Vec<f64> = vec![0.0;len];
+    let mut plaintext_ptr = unsafe {
+        mem::transmute::<*const f64, *mut u8>(plaintext_vec[..].as_ptr())
+    };
+    let mut plaintext_slice = unsafe { Vec::from_raw_parts(plaintext_ptr, len*8, len*8) };
+    let aad_array: [u8; 0] = [0; 0];
+    let d_result = rsgx_rijndael128GCM_decrypt(key,
+                                               &ciphertext_slice,
+                                               iv,
+                                               &aad_array,
+                                               in_mac,
+                                               &mut plaintext_slice);
+
+    println!("[+] Adding noise...");
+    let mut result = Vector::new(&plaintext_vec[..])+normal_vector(std_dev, len);
+    let result_ptr = unsafe{
+        mem::transmute::<*const f64, *const u8>(result.data().as_ptr())
+    };
+    let result_slice = unsafe { slice::from_raw_parts(result_ptr, len*8) };
+
+    println!("[+] Encrypting data...");
+    let mut ciphertext_vec: Vec<u8> = vec![0; len*8];
+    let ciphertext_slice = &mut ciphertext_vec[..];
+    let mut mac_array: [u8; 16] = [0; 16];
+    let e_result = rsgx_rijndael128GCM_encrypt(key,
+                                               result_slice,
+                                               iv,
+                                               &aad_array,
+                                               ciphertext_slice,
+                                               &mut mac_array);
     unsafe{
-        ptr::copy_nonoverlapping(in_vector.mut_data().as_ptr(),
+        ptr::copy_nonoverlapping(ciphertext_slice.as_ptr(),
                                  out_ptr,
-                                 len);
+                                 len*8);
     }
+    *out_mac = mac_array;
+    mem::forget(plaintext_slice);
     sgx_status_t::SGX_SUCCESS    
 }
 
