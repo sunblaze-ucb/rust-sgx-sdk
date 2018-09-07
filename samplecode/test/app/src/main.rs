@@ -194,11 +194,11 @@ extern {
 
     fn sample_main (eid: sgx_enclave_id_t, retval: *mut sgx_status_t) -> sgx_status_t;
 
-    fn add_normal_noise (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, std_dev: f64, in_ptr: *const u8, len: usize, out_ptr: *mut u8, key: &[u8;16], iv: &[u8;12], in_mac: &[u8;16], out_mac: &mut [u8;16]) -> sgx_status_t;
+    fn add_normal_noise (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, std_dev: f64, gradient: *mut u8, len: usize, key: &[u8;16], iv: &[u8;12], gradient_mac: &mut [u8;16]) -> sgx_status_t;
 
-    fn compute_grad (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, in_params: *const f64,  params_len: usize, inputs: *const f64, inputs_len: usize, targets: *const f64, targets_len: usize, out_params: *mut f64) -> sgx_status_t;
+    fn compute_grad (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, params: *const u8,  params_len: usize, inputs: *const u8, inputs_len: usize, targets: *const u8, targets_len: usize, gradient: *mut u8, key: &[u8;16], iv: &[u8;12], model_mac: &[u8;16], inputs_mac: &[u8;16], targets_mac: &[u8;16], gradient_mac: &mut [u8;16]) -> sgx_status_t;
 
-    fn update_model (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, model: *const f64, gradient: *const f64, model_len: usize, alpha: f64, updated_model: *mut f64) -> sgx_status_t;
+    fn update_model (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, model: *mut u8, gradient: *const u8, model_len: usize, alpha: f64, key: &[u8;16], iv: &[u8;12], model_mac: &mut [u8;16], gradient_mac: &[u8;16]) -> sgx_status_t;
 
     fn predict (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, model: *const f64, model_len: usize, samples: *const f64, samples_len: usize, prediction: *mut f64, prediction_len: usize);
 
@@ -287,91 +287,6 @@ fn main() {
 
     let mut retval = sgx_status_t::SGX_SUCCESS; 
 
-    /*println!("Test DP-SGD on Iris Dataset...");
-    let batch_size = 50;
-
-    println!("Load Iris Data...");
-    let dataset = load();
-    let raw_samples = dataset.data();
-    let ones = Matrix::<f64>::ones(raw_samples.rows(), 1);
-    let samples = ones.hcat(raw_samples);
-
-    let samples_ptr = samples.as_ptr();
-    let targets = dataset.target();
-    let sample_num = samples.rows();
-    let feature_num = samples.cols();
-
-    println!("Train Gradient on Batches...");
-    let iters = 100;
-    let alpha = 0.1;
-    // This should be changed to dynamic later. We can use vector.capacity to allocate a large array and use a small portion as slice, or use ones to do this.
-    let mut in_params: [f64; 5] = [0.0; 5];
-    let in_params_ptr = &in_params as *const f64;
-    let updated_model_ptr = unsafe{
-        mem::transmute::<&[f64; 5], *mut f64>(&in_params)
-    };
-    let (batch1, batch2) = samples.split_at(batch_size, Axes::Row);
-    //let batch1_ptr = batch1.as_ptr();
-    //let batch2_ptr = batch2.as_ptr();
-    let mut iter = targets.chunks(batch_size);
-    let targets1_ptr = iter.next().unwrap().as_ptr();
-    let targets2_ptr = iter.next().unwrap().as_ptr();
-    let mut out_params: [f64; 5] = [0.0; 5];
-    let out_params_ptr = unsafe{
-        mem::transmute::<&[f64; 5], *mut f64>(&out_params)
-    };
-    let mut model: [f64; 5] = [0.0; 5];
-    let model_ptr = &model as *const f64;
-
-    println!("[+] Starting aes-gcm-128 encrypt calculation");
-    let batch1_ptr = unsafe {
-        mem::transmute::<*const f64, *const u8>(batch1.as_ptr())
-    };
-    let batch2_ptr = unsafe {
-        mem::transmute::<*const f64, *const u8>(batch2.as_ptr())
-    };
-    let aes_gcm_key: [u8;16] = [0;16];
-    let aes_gcm_iv: [u8;12] = [0;12];
-    let mut cipher1: [u8;2000] = [0;2000];
-    let mut cipher2: [u8;2000] = [0;2000];
-    let cipher1_ptr = unsafe{
-        mem::transmute::<&[u8;2000], *mut u8>(&cipher1)
-    };
-    let cipher2_ptr = unsafe{
-        mem::transmute::<&[u8;2000], *mut u8>(&cipher2)
-    };
-    let mut aes_gcm_mac: [u8;16] = [0;16];
-
-    println!("[+] aes-gcm-128 args prepared!");
-    let sgx_ret = unsafe{
-        aes_gcm_128_encrypt(enclave.geteid(),
-                            &mut retval,
-                            &aes_gcm_key,
-                            batch1_ptr,
-                            2000,
-                            &aes_gcm_iv,
-                            cipher1_ptr,
-                            &mut aes_gcm_mac)
-    };
-    for i in 0..20 {
-        println!("{}", cipher1[i]);
-    }
-    for i in 0..16 {
-        println!("{}", aes_gcm_mac[i]);
-    }
-    println!("[+] aes-gcm-128 returned from enclave!");
-    let sgx_ret = unsafe{
-        decrypt_encrypt(enclave.geteid(),
-                &mut retval,
-                &aes_gcm_key,
-                cipher1_ptr,
-                250,
-                &aes_gcm_iv,
-                &aes_gcm_mac)
-    };
-    println!("Return from decrypt_encrypt");
-    */
-
     /*for _ in 0..iters/2 {
         for batch_iter in 0..2 {
             let mut batch_ptr = batch2_ptr;
@@ -428,166 +343,227 @@ fn main() {
     println!("Correct Number is {}", matching);
     */
 
-    println!("Test Add Normal Noise...");
-    println!("Encrypting...");
-    let in_vec: [f64; 5] = [1.0, 2.0, 3.0, 4.0, 5.0];
-    let in_ptr = unsafe {
-        mem::transmute::<&[f64; 5], *const u8>(&in_vec)
+    println!("Test DP-SGD on Iris Dataset...");
+
+    println!("Setting Meta Data...");
+    let batch_size = 50;
+    let alpha = 0.1;
+    let iters = 100;
+    // We do not have regularization term here so this is 1 for LR.
+    let L = 1.0;
+    // We now hard-code the eps and delta here, will change this to the arguments later.
+    let eps = 1.0;
+    let delta = 0.00001;
+
+    println!("Loading Iris Data...");
+    let dataset = load();
+    let raw_samples = dataset.data();
+    let ones = Matrix::<f64>::ones(raw_samples.rows(), 1);
+    let samples = ones.hcat(raw_samples);
+    let samples_ptr = samples.as_ptr();
+    let targets = dataset.target();
+    let sample_num = samples.rows();
+    let feature_num = samples.cols();
+    let (batch1, batch2) = samples.split_at(batch_size, Axes::Row);
+    let mut iter = targets.chunks(batch_size);
+    let targets1_ptr = unsafe{
+        mem::transmute::<*const f64, *mut u8>(iter.next().unwrap().as_ptr())
     };
-    let aes_gcm_key: [u8;16] = [0; 16];
-    let aes_gcm_iv: [u8;12] = [0; 12];
-    let mut aes_gcm_ciphertext: [u8;40] = [0;40];
-    let ciphertext_ptr = unsafe{
-        mem::transmute::<&[u8;40], *mut u8>(&aes_gcm_ciphertext)
+    let targets2_ptr = unsafe{
+        mem::transmute::<*const f64, *mut u8>(iter.next().unwrap().as_ptr())
     };
-    let mut aes_gcm_mac: [u8;16] = [0;16];
+    let batch1_ptr = unsafe {
+        mem::transmute::<*const f64, *const u8>(batch1.as_ptr())
+    };
+    let batch2_ptr = unsafe {
+        mem::transmute::<*const f64, *const u8>(batch2.as_ptr())
+    };
+    let std_dev = 4.0*L*((iters as f64)*((1.0/delta) as f64).log2()).sqrt()/((sample_num as f64)*eps);
+
+    println!("Preparing Model...");
+    let mut model: [f64; 5] = [0.0; 5];
+    let model_ptr = unsafe{
+        mem::transmute::<&[f64; 5], *mut u8>(&model)
+    };
+    let mut gradient: [f64; 5] = [0.0; 5];
+    let gradient_ptr = unsafe{
+        mem::transmute::<&[f64; 5], *mut u8>(&gradient)
+    };
+
+    println!("Preparing Encryption Meta Data...");
+    let aes_gcm_key: [u8;16] = [0;16];
+    let aes_gcm_iv: [u8;12] = [0;12];
+    let mut inputs1_mac: [u8;16] = [0;16];
+    let mut inputs2_mac: [u8; 16] = [0;16];
+    let mut targets1_mac: [u8;16] = [0;16];
+    let mut targets2_mac: [u8;16] = [0;16];
+    let mut model_mac: [u8;16] = [0;16];
+    let mut gradient_mac: [u8;16] = [0;16];
+
+    println!("Encrypting Data...");
+    let mut batch1_cipher: [u8;2000] = [0;2000];
+    let mut batch2_cipher: [u8;2000] = [0;2000];
+    let mut targets1_cipher: [u8;400] = [0;400];
+    let mut targets2_cipher: [u8;400] = [0;400];
+    let mut model_cipher: [u8;40] = [0;40];
+    let batch1_cipher_ptr = unsafe{
+        mem::transmute::<&[u8;2000], *mut u8>(&batch1_cipher)
+    };
+    let batch2_cipher_ptr = unsafe{
+        mem::transmute::<&[u8;2000], *mut u8>(&batch2_cipher)
+    };
+    let targets1_cipher_ptr = unsafe{
+        mem::transmute::<&[u8;400], *mut u8>(&targets1_cipher)
+    };
+    let targets2_cipher_ptr = unsafe{
+        mem::transmute::<&[u8;400], *mut u8>(&targets2_cipher)
+    };
+    let model_cipher_ptr = unsafe{
+        mem::transmute::<&[u8;40], *mut u8>(&model_cipher)
+    };
     let sgx_ret = unsafe{
         aes_gcm_128_encrypt(enclave.geteid(),
                             &mut retval,
                             &aes_gcm_key,
-                            in_ptr,
+                            batch1_ptr,
+                            2000,
+                            &aes_gcm_iv,
+                            batch1_cipher_ptr,
+                            &mut inputs1_mac)
+    };
+    let sgx_ret = unsafe{
+        aes_gcm_128_encrypt(enclave.geteid(),
+                            &mut retval,
+                            &aes_gcm_key,
+                            batch2_ptr,
+                            2000,
+                            &aes_gcm_iv,
+                            batch2_cipher_ptr,
+                            &mut inputs2_mac)
+    };
+    let sgx_ret = unsafe{
+        aes_gcm_128_encrypt(enclave.geteid(),
+                            &mut retval,
+                            &aes_gcm_key,
+                            targets1_ptr,
+                            400,
+                            &aes_gcm_iv,
+                            targets1_cipher_ptr,
+                            &mut targets1_mac)
+    };
+    let sgx_ret = unsafe{
+        aes_gcm_128_encrypt(enclave.geteid(),
+                            &mut retval,
+                            &aes_gcm_key,
+                            targets2_ptr,
+                            400,
+                            &aes_gcm_iv,
+                            targets2_cipher_ptr,
+                            &mut targets2_mac)
+    };
+    let sgx_ret = unsafe{
+        aes_gcm_128_encrypt(enclave.geteid(),
+                            &mut retval,
+                            &aes_gcm_key,
+                            model_ptr,
                             40,
                             &aes_gcm_iv,
-                            ciphertext_ptr,
-                            &mut aes_gcm_mac)
+                            model_cipher_ptr,
+                            &mut model_mac)
     };
-    println!("Encrypted");
-    println!("Adding Noise...");
-    let mut out_vec: [f64; 5] = [0.0; 5];
-    let out_ptr = unsafe{
-        mem::transmute::<&[f64; 5], *mut u8>(&out_vec)
+
+
+    for _ in 0..iters/2 {
+        for batch_iter in 0..2 {
+            let mut batch_ptr = batch2_cipher_ptr;
+            let mut target_ptr = targets2_cipher_ptr;
+            let mut inputs_mac = inputs2_mac;
+            let mut targets_mac = targets2_mac;
+            if batch_iter == 0 {
+                batch_ptr = batch1_cipher_ptr;
+                target_ptr = targets1_cipher_ptr;
+                inputs_mac = inputs1_mac;
+                targets_mac = targets1_mac;
+            }
+            let sgx_ret = unsafe{
+                compute_grad(enclave.geteid(),
+                             &mut retval,
+                             model_cipher_ptr,
+                             feature_num,
+                             batch_ptr,
+                             feature_num*batch_size,
+                             target_ptr,
+                             batch_size,
+                             gradient_ptr,
+                             &aes_gcm_key,
+                             &aes_gcm_iv,
+                             &model_mac,
+                             &inputs_mac,
+                             &targets_mac,
+                             &mut gradient_mac)
+            };
+            let sgx_ret = unsafe{
+                add_normal_noise(enclave.geteid(),
+                                 &mut retval,
+                                 std_dev,
+                                 gradient_ptr,
+                                 feature_num,
+                                 &aes_gcm_key,
+                                 &aes_gcm_iv,
+                                 &mut gradient_mac)
+            };
+            let sgx_ret = unsafe{
+                update_model(enclave.geteid(),
+                             &mut retval,
+                             model_cipher_ptr,
+                             gradient_ptr,
+                             feature_num,
+                             alpha,
+                             &aes_gcm_key,
+                             &aes_gcm_iv,
+                             &mut model_mac,
+                             &gradient_mac)
+            };
+        }
+    }
+
+    let decrypted_model: [f64;5] = [0.0;5];
+    let decrypted_model_ptr = unsafe{
+        mem::transmute::<&[f64;5], *mut u8>(&decrypted_model)
     };
-    let mut out_mac: [u8;16] = [0;16];
-    let sgx_ret = unsafe{
-        add_normal_noise(enclave.geteid(),
-                         &mut retval,
-                         1.0, 
-                         ciphertext_ptr, 
-                         5, 
-                         out_ptr,
-                         &aes_gcm_key,
-                         &aes_gcm_iv,
-                         &aes_gcm_mac,
-                         &mut out_mac)
-    };
-    println!("{:?}", out_vec);
-    println!("Noise added");
-    println!("Decrypting...");
-    let mut decrypted_vec: [f64; 5] = [1.0, 2.0, 3.0, 4.0, 5.0];
-    let decrypted_ptr = unsafe {
-        mem::transmute::<&[f64; 5], *mut u8>(&decrypted_vec)
-    };
+    let decrypted_model_float_ptr = &decrypted_model as *const f64;
     let sgx_ret = unsafe{
         aes_gcm_128_decrypt(enclave.geteid(),
                             &mut retval,
                             &aes_gcm_key,
-                            out_ptr,
+                            model_cipher_ptr,
                             40,
                             &aes_gcm_iv,
-                            &out_mac,
-                            decrypted_ptr)
+                            &mut model_mac,
+                            decrypted_model_ptr)
     };
-    println!("{:?}", decrypted_vec);
-    println!("Decrypted");
+    println!("{:?}", decrypted_model);
 
-    /*println!("Test Compute Gradient");
-    let in_params: [f64; 30] = [0.0; 30];
-    let inputs: [f64; 900] = [0.0; 900];
-    let targets: [f64; 30] = [0.0; 30];
-    let mut out_params: [f64; 30] = [0.0; 30];
-    let in_params_ptr = &in_params as *const f64;
-    let inputs_ptr = &inputs as *const f64;
-    let targets_ptr = &inputs as *const f64;
-    let out_params_ptr = unsafe{
-        mem::transmute::<&[f64; 30], *mut f64>(&out_params)
+    let mut result: [f64; 100] = [0.0; 100];
+    let result_ptr = unsafe{
+        mem::transmute::<&[f64; 100], *mut f64>(&result)
     };
     let sgx_ret = unsafe{
-        compute_grad(enclave.geteid(),
-                     &mut retval,
-                     in_params_ptr, 
-                     30, 
-                     inputs_ptr, 
-                     900, 
-                     targets_ptr, 
-                     30, 
-                     out_params_ptr)
+        predict(enclave.geteid(),
+                &mut retval,
+                decrypted_model_float_ptr,
+                feature_num,
+                samples_ptr,
+                feature_num*100,
+                result_ptr,
+                100)
     };
-    println!("{:?}", out_params);*/
-
-    /*println!("Test Update Model");
-    let model: [f64; 30] = [1.0; 30];
-    let gradient: [f64; 30] = [0.5; 30];
-    let mut updated_model: [f64; 30] = [10.0; 30];
-    let model_ptr = &model as *const f64;
-    let gradient_ptr = &gradient as *const f64;
-    let updated_model_ptr = unsafe{
-        mem::transmute::<&[f64; 30], *mut f64>(&updated_model)
-    };
-    let sgx_ret = unsafe{
-        update_model(enclave.geteid(),
-                     &mut retval,
-                     model_ptr,
-                     gradient_ptr,
-                     30,
-                     updated_model_ptr)
-    };
-    println!("{:?}", updated_model);*/
-
-    /*println!("Testing Crypto Primitives...");
-
-    let str: [u8; 3] = [97, 98, 99];
-    let str_ptr = &str as *const u8;
-    let mut output_hash: [u8; 32] = [0; 32];
-    println!("[+] Expected SHA256 hash: {}", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
-    let sgx_ret = unsafe {
-        calc_sha256(enclave.geteid(),
-                    &mut retval,
-                    str_ptr,
-                    3,
-                    &mut output_hash)
-    };
-    println!("{:?}", output_hash);
-
-    println!("[+] Starting aes-gcm-128 encrypt calculation");
-    let aes_gcm_plaintext: [u8;16] = [0; 16];
-    let plaintext_ptr = &aes_gcm_plaintext as *const u8;
-    let aes_gcm_key: [u8;16] = [0; 16];
-    let aes_gcm_iv: [u8;12] = [0; 12];
-    let mut aes_gcm_ciphertext: [u8;16] = [0;16];
-    let ciphertext_ptr = unsafe{
-        mem::transmute::<&[u8;16], *mut u8>(&aes_gcm_ciphertext)
-    };
-    let mut aes_gcm_mac: [u8;16] = [0;16];
-    println!("[+] aes-gcm-128 args prepared!");
-    println!("[+] aes-gcm-128 expected ciphertext: {}", "0388dace60b6a392f328c2b971b2fe78");
-    let sgx_ret = unsafe{
-        aes_gcm_128_encrypt(enclave.geteid(),
-                            &mut retval,
-                            &aes_gcm_key,
-                            plaintext_ptr,
-                            16,
-                            &aes_gcm_iv,
-                            ciphertext_ptr,
-                            &mut aes_gcm_mac);
-    };
-    println!("[+] aes-gcm-128 returned from enclave!");
-
-    println!("{:?}", aes_gcm_ciphertext);*/
-
-    /*let result = unsafe {
-        sample_main(enclave.geteid(),
-                    &mut retval)
-    };
-
-    match result {
-        sgx_status_t::SGX_SUCCESS => {},
-        _ => {
-            println!("[-] ECALL Enclave Failed {}!", result.as_str());
-            return;
-        }
+    for i in result.into_iter() {
+        println!("{}", i);
     }
-
-    println!("[+] say_something success...");*/
-    
+    let classes = result.into_iter().map(|x|if *x > 0.5 {return 1.0;} else {return 0.0;}).collect::<Vec<_>>();
+    let matching = classes.into_iter().zip(targets.into_iter()).filter(|(a, b)| a==*b ).count();
+    println!("Correct Number is {}", matching);
+ 
     enclave.destroy();
 }

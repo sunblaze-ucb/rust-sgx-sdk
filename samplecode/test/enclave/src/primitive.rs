@@ -190,19 +190,17 @@ fn decrypt_encrypt(key: &[u8;16],
 #[no_mangle]
 pub extern "C"
 fn add_normal_noise(std_dev: f64, 
-                    in_ptr: *mut u8, 
+                    gradient: *mut u8, 
                     len: usize, 
-                    out_ptr: *mut u8,
                     key: &[u8;16],
                     iv: &[u8;12],
-                    in_mac: &[u8;16],
-                    out_mac: &mut [u8;16])
+                    gradient_mac: &mut [u8;16])
                     -> sgx_status_t {
 
     println!("Adding normal noise...");
 
     println!("[+] Decrypting data...");
-    let ciphertext_slice = unsafe { slice::from_raw_parts(in_ptr, len*8) };
+    let ciphertext_slice = unsafe { slice::from_raw_parts(gradient, len*8) };
     let mut plaintext_vec: Vec<f64> = vec![0.0;len];
     let mut plaintext_ptr = unsafe {
         mem::transmute::<*const f64, *mut u8>(plaintext_vec[..].as_ptr())
@@ -213,7 +211,7 @@ fn add_normal_noise(std_dev: f64,
                                                &ciphertext_slice,
                                                iv,
                                                &aad_array,
-                                               in_mac,
+                                               gradient_mac,
                                                &mut plaintext_slice);
 
     println!("[+] Adding noise...");
@@ -223,7 +221,7 @@ fn add_normal_noise(std_dev: f64,
     };
     let result_slice = unsafe { slice::from_raw_parts(result_ptr, len*8) };
 
-    println!("[+] Encrypting data...");
+    println!("[+] Encrypting Data...");
     let mut ciphertext_vec: Vec<u8> = vec![0; len*8];
     let ciphertext_slice = &mut ciphertext_vec[..];
     let mut mac_array: [u8; 16] = [0; 16];
@@ -235,65 +233,191 @@ fn add_normal_noise(std_dev: f64,
                                                &mut mac_array);
     unsafe{
         ptr::copy_nonoverlapping(ciphertext_slice.as_ptr(),
-                                 out_ptr,
+                                 gradient,
                                  len*8);
     }
-    *out_mac = mac_array;
+    *gradient_mac = mac_array;
     mem::forget(plaintext_slice);
     sgx_status_t::SGX_SUCCESS    
 }
 
 #[no_mangle]
 pub extern "C"
-fn compute_grad(in_params: *const f64,
+fn compute_grad(params: *const u8,
                 params_len: usize,
-                inputs: *const f64,
+                inputs: *const u8,
                 inputs_len: usize,
-                targets: *const f64,
+                targets: *const u8,
                 targets_len: usize,
-                out_params: *mut f64)
+                gradient: *mut u8,
+                key: &[u8;16],
+                iv: &[u8;12],
+                model_mac: &[u8;16],
+                inputs_mac: &[u8;16],
+                targets_mac: &[u8;16],
+                gradient_mac: &mut [u8;16])
                 -> sgx_status_t {
+
     println!("Computing Gradient");
-    let params_slice = unsafe { slice::from_raw_parts(in_params, params_len)};
-    let beta_vec = Vector::new(params_slice.to_vec());
-    let inputs_slice = unsafe { slice::from_raw_parts(inputs, inputs_len)};
-    println!("{} {} {}", targets_len, params_len, inputs_slice.len());
-    let inputs_mat = &Matrix::new(targets_len, params_len, inputs_slice);
-    let targets_slice = unsafe { slice::from_raw_parts(targets, targets_len)};
-    let targets_vec = &Vector::new(targets_slice.to_vec());
-    let outputs = (inputs_mat * beta_vec).apply(&Sigmoid::func);
 
-    let cost = CrossEntropyError::cost(&outputs, targets_vec);
-    let mut grad = (inputs_mat.transpose() * (outputs - targets_vec)) / (inputs_mat.rows() as f64);
-
-    unsafe{
-        ptr::copy_nonoverlapping(grad.mut_data().as_ptr(),
-                                 out_params,
-                                 params_len);
+    println!("[+] Decrypting Data...");
+    println!("[++] Decrypting Params...");
+    let e_params_slice = unsafe { slice::from_raw_parts(params, params_len*8) };
+    let mut params_vec: Vec<f64> = vec![0.0;params_len];
+    let mut params_ptr = unsafe {
+        mem::transmute::<*const f64, *mut u8>(params_vec[..].as_ptr())
+    };
+    let mut params_slice = unsafe { Vec::from_raw_parts(params_ptr, params_len*8, params_len*8)};
+    let aad_array: [u8; 0] = [0; 0];
+    let params_result = rsgx_rijndael128GCM_decrypt(key,
+                                                    &e_params_slice,
+                                                    iv,
+                                                    &aad_array,
+                                                    model_mac,
+                                                    &mut params_slice);
+    println!("[++] Decrypting Inputs...");
+    let e_inputs_slice = unsafe { slice::from_raw_parts(inputs, inputs_len*8) };
+    let mut inputs_vec: Vec<f64> = vec![0.0;inputs_len];
+    let mut inputs_ptr = unsafe {
+        mem::transmute::<*const f64, *mut u8>(inputs_vec[..].as_ptr())
+    };
+    let mut inputs_slice = unsafe { Vec::from_raw_parts(inputs_ptr, inputs_len*8, inputs_len*8)};
+    let inputs_result = rsgx_rijndael128GCM_decrypt(key,
+                                                    &e_inputs_slice,
+                                                    iv,
+                                                    &aad_array,
+                                                    inputs_mac,
+                                                    &mut inputs_slice);
+    println!("[++] Decrypting Targets...");
+    let e_targets_slice = unsafe { slice::from_raw_parts(targets, targets_len*8) };
+    let mut targets_vec: Vec<f64> = vec![0.0;targets_len];
+    let mut targets_ptr = unsafe {
+        mem::transmute::<*const f64, *mut u8>(targets_vec[..].as_ptr())
+    };
+    let mut targets_slice = unsafe { Vec::from_raw_parts(targets_ptr, targets_len*8, targets_len*8)};
+    let targets_result = rsgx_rijndael128GCM_decrypt(key,
+                                                     &e_targets_slice,
+                                                     iv,
+                                                     &aad_array,
+                                                     targets_mac,
+                                                     &mut targets_slice);
+    for i in 0..5 {
+        println!("{}", params_vec[i]);
     }
+    for i in 0..5 {
+        println!("{}", inputs_vec[i]);
+    }
+    for i in 0..5 {
+        println!("{}", targets_vec[i]);
+    }
+    println!("[++] Computing Gradient...");
+    let beta_vec = Vector::new(params_vec);
+    println!("{} {} {}", targets_len, params_len, inputs_vec.len());
+    let inputs_mat = &Matrix::new(targets_len, params_len, inputs_vec);
+    let targets_vec = &Vector::new(targets_vec);
+    let outputs = (inputs_mat * beta_vec).apply(&Sigmoid::func);
+    let cost = CrossEntropyError::cost(&outputs, targets_vec);
+    let mut result = (inputs_mat.transpose() * (outputs - targets_vec)) / (inputs_mat.rows() as f64);
+    println!("{:?}", result.data());
 
+    println!("[+] Encrypting Data...");
+    let result_ptr = unsafe{
+        mem::transmute::<*const f64, *const u8>(result.data().as_ptr())
+    };
+    let result_slice = unsafe { slice::from_raw_parts(result_ptr, params_len*8) };
+    let mut ciphertext_vec: Vec<u8> = vec![0; params_len*8];
+    let ciphertext_slice = &mut ciphertext_vec[..];
+    let mut mac_array: [u8; 16] = [0; 16];
+    let e_result = rsgx_rijndael128GCM_encrypt(key,
+                                               result_slice,
+                                               iv,
+                                               &aad_array,
+                                               ciphertext_slice,
+                                               &mut mac_array);
+    unsafe{
+        ptr::copy_nonoverlapping(ciphertext_slice.as_ptr(),
+                                 gradient,
+                                 params_len*8);
+    }
+    *gradient_mac = mac_array;
+    mem::forget(params_slice);
+    mem::forget(inputs_slice);
+    mem::forget(targets_slice);
     sgx_status_t::SGX_SUCCESS
 }
 
 #[no_mangle]
 pub extern "C"
-fn update_model(model: *const f64,
-                gradient: *const f64,
+fn update_model(model: *mut u8,
+                gradient: *const u8,
                 model_len: usize,
                 alpha: f64,
-                updated_model: *mut f64)
+                key: &[u8;16],
+                iv: &[u8;12],
+                model_mac: &mut [u8;16],
+                gradient_mac: &[u8;16])
                 -> sgx_status_t {
-    println!("Updating Model");
-    let model_slice = unsafe { slice::from_raw_parts(model, model_len)};
-    let model_vec = &Vector::new(model_slice.to_vec());
-    let grad_slice = unsafe { slice::from_raw_parts(gradient, model_len)};
-    let grad_vec = &Vector::new(grad_slice.to_vec());
-    let mut updated_vec = model_vec - grad_vec * alpha;
-    unsafe{
-        ptr::copy_nonoverlapping(updated_vec.mut_data().as_ptr(),
-                                 updated_model,
-                                 model_len);
+
+    println!("Updating Model...");
+
+    println!("[++] Decrypting Model...");
+    let e_model_slice = unsafe { slice::from_raw_parts(model, model_len*8) };
+    let mut model_vec: Vec<f64> = vec![0.0;model_len];
+    let mut model_ptr = unsafe {
+        mem::transmute::<*const f64, *mut u8>(model_vec[..].as_ptr())
+    };
+    let mut model_slice = unsafe { Vec::from_raw_parts(model_ptr, model_len*8, model_len*8)};
+    let aad_array: [u8; 0] = [0; 0];
+    let model_result = rsgx_rijndael128GCM_decrypt(key,
+                                                    &e_model_slice,
+                                                    iv,
+                                                    &aad_array,
+                                                    model_mac,
+                                                    &mut model_slice);
+    println!("[++] Decrypting Gradient...");
+    let e_gradient_slice = unsafe { slice::from_raw_parts(gradient, model_len*8) };
+    let mut gradient_vec: Vec<f64> = vec![0.0;model_len];
+    let mut gradient_ptr = unsafe {
+        mem::transmute::<*const f64, *mut u8>(gradient_vec[..].as_ptr())
+    };
+    let mut gradient_slice = unsafe { Vec::from_raw_parts(gradient_ptr, model_len*8, model_len*8)};
+    let aad_array: [u8; 0] = [0; 0];
+    let gradient_result = rsgx_rijndael128GCM_decrypt(key,
+                                                      &e_gradient_slice,
+                                                      iv,
+                                                      &aad_array,
+                                                      gradient_mac,
+                                                      &mut gradient_slice);
+
+    println!("[++] Updating Model...");
+    let mut result = Vector::new(model_vec) - Vector::new(gradient_vec) * alpha;
+    for i in 0..20 {
+       println!("{}", e_gradient_slice[i]);
     }
+    println!("{:?}", result.data());
+
+    println!("[++] Encrypting Data...");
+    let result_ptr = unsafe{
+        mem::transmute::<*const f64, *const u8>(result.data().as_ptr())
+    };
+    let result_slice = unsafe { slice::from_raw_parts(result_ptr, model_len*8) };
+    let mut ciphertext_vec: Vec<u8> = vec![0; model_len*8];
+    let ciphertext_slice = &mut ciphertext_vec[..];
+    let mut mac_array: [u8; 16] = [0; 16];
+    let e_result = rsgx_rijndael128GCM_encrypt(key,
+                                               result_slice,
+                                               iv,
+                                               &aad_array,
+                                               ciphertext_slice,
+                                               &mut mac_array);
+    unsafe{
+        ptr::copy_nonoverlapping(ciphertext_slice.as_ptr(),
+                                 model,
+                                 model_len*8);
+    }
+    *model_mac = mac_array;
+    mem::forget(model_slice);
+    mem::forget(gradient_slice);
     sgx_status_t::SGX_SUCCESS
 }
 
