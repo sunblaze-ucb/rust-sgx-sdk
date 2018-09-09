@@ -75,12 +75,6 @@ enclave {
                                     [out, size=prediction_len, count=8] double* prediction,
                                     size_t prediction_len);
 
-        public sgx_status_t decrypt_encrypt([in] uint8_t key[16],
-                                    [in, size=text_len, count=8] const uint8_t* ciphertext,
-                                    size_t text_len,
-                                    [in] uint8_t iv[12],
-                                    [in] uint8_t mac[16]);
-
         /* core ECALL function that do the dp learning. */
         public sgx_status_t sample_main();
 

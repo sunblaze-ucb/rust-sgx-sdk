@@ -201,8 +201,6 @@ extern {
     fn update_model (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, model: *mut u8, gradient: *const u8, model_len: usize, alpha: f64, key: &[u8;16], iv: &[u8;12], model_mac: &mut [u8;16], gradient_mac: &[u8;16]) -> sgx_status_t;
 
     fn predict (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, model: *const f64, model_len: usize, samples: *const f64, samples_len: usize, prediction: *mut f64, prediction_len: usize);
-
-    fn decrypt_encrypt (eid: sgx_enclave_id_t, retval: *mut sgx_status_t, key: &[u8;16], ciphertext: *const u8, text_len: usize, iv: &[u8;12], mac: &[u8;16]);
 }
 
 fn init_enclave() -> SgxResult<SgxEnclave> {
@@ -286,62 +284,6 @@ fn main() {
     };
 
     let mut retval = sgx_status_t::SGX_SUCCESS; 
-
-    /*for _ in 0..iters/2 {
-        for batch_iter in 0..2 {
-            let mut batch_ptr = batch2_ptr;
-            let mut target_ptr = targets2_ptr;
-            if batch_iter == 0 {
-                batch_ptr = batch1_ptr;
-                target_ptr = targets1_ptr;
-            }
-            let sgx_ret = unsafe{
-                compute_grad(enclave.geteid(),
-                             &mut retval,
-                             in_params_ptr,
-                             feature_num,
-                             batch_ptr,
-                             feature_num*batch_size,
-                             target_ptr,
-                             batch_size,
-                             out_params_ptr)
-            };
-            println!("{:?}", out_params);
-            model.clone_from(&in_params);
-            let sgx_ret = unsafe{
-                update_model(enclave.geteid(),
-                             &mut retval,
-                             model_ptr,
-                             out_params_ptr,
-                             feature_num,
-                             alpha,
-                             updated_model_ptr)
-            };
-            println!("{:?}", in_params);
-        }
-    }
-
-    let mut result: [f64; 100] = [0.0; 100];
-    let result_ptr = unsafe{
-        mem::transmute::<&[f64; 100], *mut f64>(&result)
-    };
-    let sgx_ret = unsafe{
-        predict(enclave.geteid(),
-                &mut retval,
-                model_ptr,
-                feature_num,
-                samples_ptr,
-                feature_num*100,
-                result_ptr,
-                100)
-    };
-    for i in result.into_iter() {
-        println!("{}", i);
-    }
-    let classes = result.into_iter().map(|x|if *x > 0.5 {return 1.0;} else {return 0.0;}).collect::<Vec<_>>();
-    let matching = classes.into_iter().zip(targets.into_iter()).filter(|(a, b)| a==*b ).count();
-    println!("Correct Number is {}", matching);
-    */
 
     println!("Test DP-SGD on Iris Dataset...");
 
