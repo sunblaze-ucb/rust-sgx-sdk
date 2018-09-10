@@ -152,9 +152,9 @@ fn add_normal_noise(std_dev: f64,
                     gradient_mac: &mut [u8;16])
                     -> sgx_status_t {
 
-    println!("Adding normal noise...");
+    //println!("Adding normal noise...");
 
-    println!("[+] Decrypting data...");
+    //println!("[+] Decrypting data...");
     let ciphertext_slice = unsafe { slice::from_raw_parts(gradient, len*8) };
     let mut plaintext_vec: Vec<f64> = vec![0.0;len];
     let mut plaintext_ptr = unsafe {
@@ -169,14 +169,14 @@ fn add_normal_noise(std_dev: f64,
                                                gradient_mac,
                                                &mut plaintext_slice);
 
-    println!("[+] Adding noise...");
+    // println!("[+] Adding noise...");
     let mut result = Vector::new(&plaintext_vec[..])+normal_vector(std_dev, len);
     let result_ptr = unsafe{
         mem::transmute::<*const f64, *const u8>(result.data().as_ptr())
     };
     let result_slice = unsafe { slice::from_raw_parts(result_ptr, len*8) };
 
-    println!("[+] Encrypting Data...");
+    //println!("[+] Encrypting Data...");
     let mut ciphertext_vec: Vec<u8> = vec![0; len*8];
     let ciphertext_slice = &mut ciphertext_vec[..];
     let mut mac_array: [u8; 16] = [0; 16];
@@ -213,10 +213,10 @@ fn compute_grad(params: *const u8,
                 gradient_mac: &mut [u8;16])
                 -> sgx_status_t {
 
-    println!("Computing Gradient");
+    //println!("Computing Gradient");
 
-    println!("[+] Decrypting Data...");
-    println!("[++] Decrypting Params...");
+    //println!("[+] Decrypting Data...");
+    //println!("[++] Decrypting Params...");
     let e_params_slice = unsafe { slice::from_raw_parts(params, params_len*8) };
     let mut params_vec: Vec<f64> = vec![0.0;params_len];
     let mut params_ptr = unsafe {
@@ -230,7 +230,7 @@ fn compute_grad(params: *const u8,
                                                     &aad_array,
                                                     model_mac,
                                                     &mut params_slice);
-    println!("[++] Decrypting Inputs...");
+    //println!("[++] Decrypting Inputs...");
     let e_inputs_slice = unsafe { slice::from_raw_parts(inputs, inputs_len*8) };
     let mut inputs_vec: Vec<f64> = vec![0.0;inputs_len];
     let mut inputs_ptr = unsafe {
@@ -243,7 +243,7 @@ fn compute_grad(params: *const u8,
                                                     &aad_array,
                                                     inputs_mac,
                                                     &mut inputs_slice);
-    println!("[++] Decrypting Targets...");
+    //println!("[++] Decrypting Targets...");
     let e_targets_slice = unsafe { slice::from_raw_parts(targets, targets_len*8) };
     let mut targets_vec: Vec<f64> = vec![0.0;targets_len];
     let mut targets_ptr = unsafe {
@@ -256,17 +256,17 @@ fn compute_grad(params: *const u8,
                                                      &aad_array,
                                                      targets_mac,
                                                      &mut targets_slice);
-    println!("[++] Computing Gradient...");
+    //println!("[++] Computing Gradient...");
     let beta_vec = Vector::new(params_vec);
-    println!("{} {} {}", targets_len, params_len, inputs_vec.len());
+    // println!("{} {} {}", targets_len, params_len, inputs_vec.len());
     let inputs_mat = &Matrix::new(targets_len, params_len, inputs_vec);
     let targets_vec = &Vector::new(targets_vec);
     let outputs = (inputs_mat * beta_vec).apply(&Sigmoid::func);
     let cost = CrossEntropyError::cost(&outputs, targets_vec);
     let mut result = (inputs_mat.transpose() * (outputs - targets_vec)) / (inputs_mat.rows() as f64);
-    println!("{:?}", result.data());
+    //println!("{:?}", result.data());
 
-    println!("[+] Encrypting Data...");
+    //println!("[+] Encrypting Data...");
     let result_ptr = unsafe{
         mem::transmute::<*const f64, *const u8>(result.data().as_ptr())
     };
@@ -304,9 +304,9 @@ fn update_model(model: *mut u8,
                 gradient_mac: &[u8;16])
                 -> sgx_status_t {
 
-    println!("Updating Model...");
+    // println!("Updating Model...");
 
-    println!("[++] Decrypting Model...");
+    // println!("[++] Decrypting Model...");
     let e_model_slice = unsafe { slice::from_raw_parts(model, model_len*8) };
     let mut model_vec: Vec<f64> = vec![0.0;model_len];
     let mut model_ptr = unsafe {
@@ -320,7 +320,7 @@ fn update_model(model: *mut u8,
                                                     &aad_array,
                                                     model_mac,
                                                     &mut model_slice);
-    println!("[++] Decrypting Gradient...");
+    // println!("[++] Decrypting Gradient...");
     let e_gradient_slice = unsafe { slice::from_raw_parts(gradient, model_len*8) };
     let mut gradient_vec: Vec<f64> = vec![0.0;model_len];
     let mut gradient_ptr = unsafe {
@@ -335,14 +335,14 @@ fn update_model(model: *mut u8,
                                                       gradient_mac,
                                                       &mut gradient_slice);
 
-    println!("[++] Updating Model...");
+    // println!("[++] Updating Model...");
     let mut result = Vector::new(model_vec) - Vector::new(gradient_vec) * alpha;
-    for i in 0..20 {
+    /*for i in 0..20 {
        println!("{}", e_gradient_slice[i]);
-    }
-    println!("{:?}", result.data());
+    }*/
+    // println!("{:?}", result.data());
 
-    println!("[++] Encrypting Data...");
+    // println!("[++] Encrypting Data...");
     let result_ptr = unsafe{
         mem::transmute::<*const f64, *const u8>(result.data().as_ptr())
     };

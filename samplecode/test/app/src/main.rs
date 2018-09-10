@@ -37,14 +37,25 @@ use sgx_urts::SgxEnclave;
 
 use std::io::{Read, Write};
 use std::fs;
+use std::fs::File;
 use std::path;
 use std::mem;
+use std::io;
+use std::io::prelude::*;
+use std::io::Cursor;
 use std::fmt::Debug;
 use std::vec::Vec;
+use std::ptr;
 
 use rulinalg::matrix::{Axes, Matrix, MatrixSlice, MatrixSliceMut, BaseMatrix, BaseMatrixMut};
 use rulinalg::vector::Vector;
 use rulinalg::norm;
+
+const BATCH_SIZE: usize = 100;
+const SAMPLE_COL_NUMBER: usize = 6;
+const TARGET_COL_NUMBER: usize = 1;
+const MAC_BYTE_NUMBER: usize = 16;
+const IV_BYTE_NUMBER: usize = 12;
 
 /// Dataset container
 #[derive(Clone, Debug)]
@@ -65,6 +76,11 @@ impl<D, T> Dataset<D, T> where D: Clone + Debug, T: Clone + Debug {
     pub fn target(&self) -> &T {
         &self.target
     }
+}
+
+fn read_file(file_path: String, buffer_array: &mut [u8]) {
+    let mut f = File::open(file_path).expect("file not found");
+    f.read(buffer_array).expect("something went wrong reading the file");
 }
 
 pub fn load() -> Dataset<Matrix<f64>, Vec<f64>> {
@@ -289,6 +305,7 @@ fn main() {
 
     println!("Setting Meta Data...");
     let batch_size = 50;
+    let batch_num = 2; 
     let alpha = 0.1;
     let iters = 100;
     // We do not have regularization term here so this is 1 for LR.
@@ -297,33 +314,48 @@ fn main() {
     let eps = 1.0;
     let delta = 0.00001;
 
-    println!("Loading Iris Data...");
+    println!("Loading Liver Disorder Data...");
+    let mut sample_array: [u8; BATCH_SIZE * SAMPLE_COL_NUMBER * 8] = [0; BATCH_SIZE * SAMPLE_COL_NUMBER * 8];
+    let mut target_array: [u8; BATCH_SIZE * TARGET_COL_NUMBER * 8] = [0; BATCH_SIZE * TARGET_COL_NUMBER * 8];
+    let mut mac_array: [u8; MAC_BYTE_NUMBER] = [0; MAC_BYTE_NUMBER];
+    let sample_file = "../datasets/liver-disorders-train_encrypted_sample_0";
+    let mac_file = "../datasets/liver-disorders-train_mac_sample_0";
+    read_file(sample_file.to_string(), &mut sample_array);
+    // println!("sample array {:x?}", &sample_array[..]);
+    read_file(mac_file.to_string(), &mut mac_array);
+    // println!("mac array {:x?}", &mac_array[..]);
+
+    /*println!("Loading Iris Data...");
     let dataset = load();
     let raw_samples = dataset.data();
     let ones = Matrix::<f64>::ones(raw_samples.rows(), 1);
-    let samples = ones.hcat(raw_samples);
+    let mut samples = ones.hcat(raw_samples);
     let samples_ptr = samples.as_ptr();
     let targets = dataset.target();
     let sample_num = samples.rows();
     let feature_num = samples.cols();
-    let (batch1, batch2) = samples.split_at(batch_size, Axes::Row);
+    let batch_num = sample_num/batch_size;
+    let mut batch = Vec::with_capacity(1000);
+    for i in 0..batch_num {
+        batch.push(samples.sub_slice([batch_size*i, 0], batch_size, feature_num));
+    }
+    let mut batch_ptr: [*const u8;2] = [ptr::null();2];
+    for i in 0..batch_ptr.len() {
+        batch_ptr[i] = unsafe {
+            mem::transmute::<*const f64, *const u8>(batch[i].as_ptr())
+        };
+    }
     let mut iter = targets.chunks(batch_size);
-    let targets1_ptr = unsafe{
-        mem::transmute::<*const f64, *mut u8>(iter.next().unwrap().as_ptr())
-    };
-    let targets2_ptr = unsafe{
-        mem::transmute::<*const f64, *mut u8>(iter.next().unwrap().as_ptr())
-    };
-    let batch1_ptr = unsafe {
-        mem::transmute::<*const f64, *const u8>(batch1.as_ptr())
-    };
-    let batch2_ptr = unsafe {
-        mem::transmute::<*const f64, *const u8>(batch2.as_ptr())
-    };
+    let mut targets_ptr: [*mut u8;2] = [ptr::null_mut();2];
+    for i in 0..targets_ptr.len() {
+        targets_ptr[i] = unsafe{
+            mem::transmute::<*const f64, *mut u8>(iter.next().unwrap().as_ptr())
+         };
+    }*/
     let std_dev = 4.0*L*((iters as f64)*((1.0/delta) as f64).log2()).sqrt()/((sample_num as f64)*eps);
 
     println!("Preparing Model...");
-    let mut model: [f64; 5] = [0.0; 5];
+    let mut model: [f64; MODEL] = [0.0; 5];
     let model_ptr = unsafe{
         mem::transmute::<&[f64; 5], *mut u8>(&model)
     };
@@ -335,74 +367,52 @@ fn main() {
     println!("Preparing Encryption Meta Data...");
     let aes_gcm_key: [u8;16] = [0;16];
     let aes_gcm_iv: [u8;12] = [0;12];
-    let mut inputs1_mac: [u8;16] = [0;16];
-    let mut inputs2_mac: [u8; 16] = [0;16];
-    let mut targets1_mac: [u8;16] = [0;16];
-    let mut targets2_mac: [u8;16] = [0;16];
+    let mut inputs_mac: [[u8;16];2] = [[0;16];2];
+    let mut targets_mac: [[u8;16];2] = [[0;16];2];
     let mut model_mac: [u8;16] = [0;16];
     let mut gradient_mac: [u8;16] = [0;16];
 
     println!("Encrypting Data...");
-    let mut batch1_cipher: [u8;2000] = [0;2000];
-    let mut batch2_cipher: [u8;2000] = [0;2000];
-    let mut targets1_cipher: [u8;400] = [0;400];
-    let mut targets2_cipher: [u8;400] = [0;400];
+    let mut batch_cipher: [[u8;2000];2] = [[0;2000];2];
+    let mut targets_cipher: [[u8;400];2] = [[0;400];2];
     let mut model_cipher: [u8;40] = [0;40];
-    let batch1_cipher_ptr = unsafe{
-        mem::transmute::<&[u8;2000], *mut u8>(&batch1_cipher)
-    };
-    let batch2_cipher_ptr = unsafe{
-        mem::transmute::<&[u8;2000], *mut u8>(&batch2_cipher)
-    };
-    let targets1_cipher_ptr = unsafe{
-        mem::transmute::<&[u8;400], *mut u8>(&targets1_cipher)
-    };
-    let targets2_cipher_ptr = unsafe{
-        mem::transmute::<&[u8;400], *mut u8>(&targets2_cipher)
-    };
+    let mut batch_cipher_ptr: [*mut u8;2] = [ptr::null_mut();2];
+    let mut targets_cipher_ptr: [*mut u8;2] = [ptr::null_mut();2];
+    for i in 0..batch_cipher.len() {
+        batch_cipher_ptr[i] = unsafe{
+            mem::transmute::<&[u8;2000], *mut u8>(&batch_cipher[i])
+        };
+    }
+    for i in 0..targets_cipher.len() {
+        targets_cipher_ptr[i] = unsafe{
+            mem::transmute::<&[u8;400], *mut u8>(&targets_cipher[i])
+        };
+    }
     let model_cipher_ptr = unsafe{
         mem::transmute::<&[u8;40], *mut u8>(&model_cipher)
     };
-    let sgx_ret = unsafe{
-        aes_gcm_128_encrypt(enclave.geteid(),
-                            &mut retval,
-                            &aes_gcm_key,
-                            batch1_ptr,
-                            2000,
-                            &aes_gcm_iv,
-                            batch1_cipher_ptr,
-                            &mut inputs1_mac)
-    };
-    let sgx_ret = unsafe{
-        aes_gcm_128_encrypt(enclave.geteid(),
-                            &mut retval,
-                            &aes_gcm_key,
-                            batch2_ptr,
-                            2000,
-                            &aes_gcm_iv,
-                            batch2_cipher_ptr,
-                            &mut inputs2_mac)
-    };
-    let sgx_ret = unsafe{
-        aes_gcm_128_encrypt(enclave.geteid(),
-                            &mut retval,
-                            &aes_gcm_key,
-                            targets1_ptr,
-                            400,
-                            &aes_gcm_iv,
-                            targets1_cipher_ptr,
-                            &mut targets1_mac)
-    };
-    let sgx_ret = unsafe{
-        aes_gcm_128_encrypt(enclave.geteid(),
-                            &mut retval,
-                            &aes_gcm_key,
-                            targets2_ptr,
-                            400,
-                            &aes_gcm_iv,
-                            targets2_cipher_ptr,
-                            &mut targets2_mac)
-    };
+    for i in 0..batch_cipher.len() {
+        let sgx_ret = unsafe{
+            aes_gcm_128_encrypt(enclave.geteid(),
+                                &mut retval,
+                                &aes_gcm_key,
+                                batch_ptr[i],
+                                2000,
+                                &aes_gcm_iv,
+                                batch_cipher_ptr[i],
+                                &mut inputs_mac[i])
+        };
+        let sgx_ret = unsafe{
+            aes_gcm_128_encrypt(enclave.geteid(),
+                                &mut retval,
+                                &aes_gcm_key,
+                                targets_ptr[i],
+                                400,
+                                &aes_gcm_iv,
+                                targets_cipher_ptr[i],
+                                &mut targets_mac[i])
+        };
+    }
     let sgx_ret = unsafe{
         aes_gcm_128_encrypt(enclave.geteid(),
                             &mut retval,
@@ -415,58 +425,47 @@ fn main() {
     };
 
 
-    for _ in 0..iters/2 {
-        for batch_iter in 0..2 {
-            let mut batch_ptr = batch2_cipher_ptr;
-            let mut target_ptr = targets2_cipher_ptr;
-            let mut inputs_mac = inputs2_mac;
-            let mut targets_mac = targets2_mac;
-            if batch_iter == 0 {
-                batch_ptr = batch1_cipher_ptr;
-                target_ptr = targets1_cipher_ptr;
-                inputs_mac = inputs1_mac;
-                targets_mac = targets1_mac;
-            }
-            let sgx_ret = unsafe{
-                compute_grad(enclave.geteid(),
+    for i in 0..iters {
+        let batch_index = i%batch_num;
+        let sgx_ret = unsafe{
+            compute_grad(enclave.geteid(),
+                         &mut retval,
+                         model_cipher_ptr,
+                         feature_num,
+                         batch_cipher_ptr[batch_index],
+                         feature_num*batch_size,
+                         targets_cipher_ptr[batch_index],
+                         batch_size,
+                         gradient_ptr,
+                         &aes_gcm_key,
+                         &aes_gcm_iv,
+                         &model_mac,
+                         &inputs_mac[batch_index],
+                         &targets_mac[batch_index],
+                         &mut gradient_mac)
+        };
+        let sgx_ret = unsafe{
+            add_normal_noise(enclave.geteid(),
                              &mut retval,
-                             model_cipher_ptr,
-                             feature_num,
-                             batch_ptr,
-                             feature_num*batch_size,
-                             target_ptr,
-                             batch_size,
+                             std_dev,
                              gradient_ptr,
+                             feature_num,
                              &aes_gcm_key,
                              &aes_gcm_iv,
-                             &model_mac,
-                             &inputs_mac,
-                             &targets_mac,
                              &mut gradient_mac)
-            };
-            let sgx_ret = unsafe{
-                add_normal_noise(enclave.geteid(),
-                                 &mut retval,
-                                 std_dev,
-                                 gradient_ptr,
-                                 feature_num,
-                                 &aes_gcm_key,
-                                 &aes_gcm_iv,
-                                 &mut gradient_mac)
-            };
-            let sgx_ret = unsafe{
-                update_model(enclave.geteid(),
-                             &mut retval,
-                             model_cipher_ptr,
-                             gradient_ptr,
-                             feature_num,
-                             alpha,
-                             &aes_gcm_key,
-                             &aes_gcm_iv,
-                             &mut model_mac,
-                             &gradient_mac)
-            };
-        }
+        };
+        let sgx_ret = unsafe{
+            update_model(enclave.geteid(),
+                         &mut retval,
+                         model_cipher_ptr,
+                         gradient_ptr,
+                         feature_num,
+                         alpha,
+                         &aes_gcm_key,
+                         &aes_gcm_iv,
+                         &mut model_mac,
+                         &gradient_mac)
+        };
     }
 
     let decrypted_model: [f64;5] = [0.0;5];
@@ -500,9 +499,9 @@ fn main() {
                 result_ptr,
                 100)
     };
-    for i in result.into_iter() {
+    /* for i in result.into_iter() {
         println!("{}", i);
-    }
+    }*/
     let classes = result.into_iter().map(|x|if *x > 0.5 {return 1.0;} else {return 0.0;}).collect::<Vec<_>>();
     let matching = classes.into_iter().zip(targets.into_iter()).filter(|(a, b)| a==*b ).count();
     println!("Correct Number is {}", matching);

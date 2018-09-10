@@ -1,7 +1,9 @@
 [package]
 name = "app"
 version = "1.0.0"
-authors = ["Baidu"]
+authors = ["Lun Wang, wanglun@berkeley.edu",
+           "Li Shen, l.shen@alibaba-inc.com",
+           "Baidu"]
 build = "build.rs"
 
 [dependencies]
