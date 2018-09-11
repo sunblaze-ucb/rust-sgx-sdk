@@ -11,3 +11,4 @@ sgx_types = { path = "../../../sgx_types" }
 sgx_urts = { path = "../../../sgx_urts" }
 dirs = "1.0.2"
 rulinalg = { git = "https://github.com/AtheMathmo/rulinalg" }
+csv = "1"

@@ -31,6 +31,7 @@ extern crate sgx_urts;
 extern crate dirs;
 #[macro_use]
 extern crate rulinalg;
+extern crate csv;
 
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
@@ -81,117 +82,6 @@ impl<D, T> Dataset<D, T> where D: Clone + Debug, T: Clone + Debug {
 fn read_file(file_path: String, buffer_array: &mut [u8]) {
     let mut f = File::open(file_path).expect("file not found");
     f.read(buffer_array).expect("something went wrong reading the file");
-}
-
-pub fn load() -> Dataset<Matrix<f64>, Vec<f64>> {
-    let data: Matrix<f64> = matrix![5.1, 3.5, 1.4, 0.2;
-                                    4.9, 3.0, 1.4, 0.2;
-                                    4.7, 3.2, 1.3, 0.2;
-                                    4.6, 3.1, 1.5, 0.2;
-                                    5.0, 3.6, 1.4, 0.2;
-                                    5.4, 3.9, 1.7, 0.4;
-                                    4.6, 3.4, 1.4, 0.3;
-                                    5.0, 3.4, 1.5, 0.2;
-                                    4.4, 2.9, 1.4, 0.2;
-                                    4.9, 3.1, 1.5, 0.1;
-                                    5.4, 3.7, 1.5, 0.2;
-                                    4.8, 3.4, 1.6, 0.2;
-                                    4.8, 3.0, 1.4, 0.1;
-                                    4.3, 3.0, 1.1, 0.1;
-                                    5.8, 4.0, 1.2, 0.2;
-                                    5.7, 4.4, 1.5, 0.4;
-                                    5.4, 3.9, 1.3, 0.4;
-                                    5.1, 3.5, 1.4, 0.3;
-                                    5.7, 3.8, 1.7, 0.3;
-                                    5.1, 3.8, 1.5, 0.3;
-                                    5.4, 3.4, 1.7, 0.2;
-                                    5.1, 3.7, 1.5, 0.4;
-                                    4.6, 3.6, 1.0, 0.2;
-                                    5.1, 3.3, 1.7, 0.5;
-                                    4.8, 3.4, 1.9, 0.2;
-                                    5.0, 3.0, 1.6, 0.2;
-                                    5.0, 3.4, 1.6, 0.4;
-                                    5.2, 3.5, 1.5, 0.2;
-                                    5.2, 3.4, 1.4, 0.2;
-                                    4.7, 3.2, 1.6, 0.2;
-                                    4.8, 3.1, 1.6, 0.2;
-                                    5.4, 3.4, 1.5, 0.4;
-                                    5.2, 4.1, 1.5, 0.1;
-                                    5.5, 4.2, 1.4, 0.2;
-                                    4.9, 3.1, 1.5, 0.1;
-                                    5.0, 3.2, 1.2, 0.2;
-                                    5.5, 3.5, 1.3, 0.2;
-                                    4.9, 3.1, 1.5, 0.1;
-                                    4.4, 3.0, 1.3, 0.2;
-                                    5.1, 3.4, 1.5, 0.2;
-                                    5.0, 3.5, 1.3, 0.3;
-                                    4.5, 2.3, 1.3, 0.3;
-                                    4.4, 3.2, 1.3, 0.2;
-                                    5.0, 3.5, 1.6, 0.6;
-                                    5.1, 3.8, 1.9, 0.4;
-                                    4.8, 3.0, 1.4, 0.3;
-                                    5.1, 3.8, 1.6, 0.2;
-                                    4.6, 3.2, 1.4, 0.2;
-                                    5.3, 3.7, 1.5, 0.2;
-                                    5.0, 3.3, 1.4, 0.2;
-                                    7.0, 3.2, 4.7, 1.4;
-                                    6.4, 3.2, 4.5, 1.5;
-                                    6.9, 3.1, 4.9, 1.5;
-                                    5.5, 2.3, 4.0, 1.3;
-                                    6.5, 2.8, 4.6, 1.5;
-                                    5.7, 2.8, 4.5, 1.3;
-                                    6.3, 3.3, 4.7, 1.6;
-                                    4.9, 2.4, 3.3, 1.0;
-                                    6.6, 2.9, 4.6, 1.3;
-                                    5.2, 2.7, 3.9, 1.4;
-                                    5.0, 2.0, 3.5, 1.0;
-                                    5.9, 3.0, 4.2, 1.5;
-                                    6.0, 2.2, 4.0, 1.0;
-                                    6.1, 2.9, 4.7, 1.4;
-                                    5.6, 2.9, 3.6, 1.3;
-                                    6.7, 3.1, 4.4, 1.4;
-                                    5.6, 3.0, 4.5, 1.5;
-                                    5.8, 2.7, 4.1, 1.0;
-                                    6.2, 2.2, 4.5, 1.5;
-                                    5.6, 2.5, 3.9, 1.1;
-                                    5.9, 3.2, 4.8, 1.8;
-                                    6.1, 2.8, 4.0, 1.3;
-                                    6.3, 2.5, 4.9, 1.5;
-                                    6.1, 2.8, 4.7, 1.2;
-                                    6.4, 2.9, 4.3, 1.3;
-                                    6.6, 3.0, 4.4, 1.4;
-                                    6.8, 2.8, 4.8, 1.4;
-                                    6.7, 3.0, 5.0, 1.7;
-                                    6.0, 2.9, 4.5, 1.5;
-                                    5.7, 2.6, 3.5, 1.0;
-                                    5.5, 2.4, 3.8, 1.1;
-                                    5.5, 2.4, 3.7, 1.0;
-                                    5.8, 2.7, 3.9, 1.2;
-                                    6.0, 2.7, 5.1, 1.6;
-                                    5.4, 3.0, 4.5, 1.5;
-                                    6.0, 3.4, 4.5, 1.6;
-                                    6.7, 3.1, 4.7, 1.5;
-                                    6.3, 2.3, 4.4, 1.3;
-                                    5.6, 3.0, 4.1, 1.3;
-                                    5.5, 2.5, 4.0, 1.3;
-                                    5.5, 2.6, 4.4, 1.2;
-                                    6.1, 3.0, 4.6, 1.4;
-                                    5.8, 2.6, 4.0, 1.2;
-                                    5.0, 2.3, 3.3, 1.0;
-                                    5.6, 2.7, 4.2, 1.3;
-                                    5.7, 3.0, 4.2, 1.2;
-                                    5.7, 2.9, 4.2, 1.3;
-                                    6.2, 2.9, 4.3, 1.3;
-                                    5.1, 2.5, 3.0, 1.1;
-                                    5.7, 2.8, 4.1, 1.3];
-
-    let target: Vec<f64> = vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                                  1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-                                  1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
-
-    Dataset{ data: data,
-             target: target }
 }
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
@@ -304,64 +194,26 @@ fn main() {
     println!("Test DP-SGD on Iris Dataset...");
 
     println!("Setting Meta Data...");
-    let batch_size = 50;
+    let batch_size = 100;
     let batch_num = 2; 
+    let sample_num = 200;
     let alpha = 0.1;
-    let iters = 100;
+    let iters = 10000;
     // We do not have regularization term here so this is 1 for LR.
     let L = 1.0;
     // We now hard-code the eps and delta here, will change this to the arguments later.
     let eps = 1.0;
     let delta = 0.00001;
 
-    println!("Loading Liver Disorder Data...");
-    let mut sample_array: [u8; BATCH_SIZE * SAMPLE_COL_NUMBER * 8] = [0; BATCH_SIZE * SAMPLE_COL_NUMBER * 8];
-    let mut target_array: [u8; BATCH_SIZE * TARGET_COL_NUMBER * 8] = [0; BATCH_SIZE * TARGET_COL_NUMBER * 8];
-    let mut mac_array: [u8; MAC_BYTE_NUMBER] = [0; MAC_BYTE_NUMBER];
-    let sample_file = "../datasets/liver-disorders-train_encrypted_sample_0";
-    let mac_file = "../datasets/liver-disorders-train_mac_sample_0";
-    read_file(sample_file.to_string(), &mut sample_array);
-    // println!("sample array {:x?}", &sample_array[..]);
-    read_file(mac_file.to_string(), &mut mac_array);
-    // println!("mac array {:x?}", &mac_array[..]);
-
-    /*println!("Loading Iris Data...");
-    let dataset = load();
-    let raw_samples = dataset.data();
-    let ones = Matrix::<f64>::ones(raw_samples.rows(), 1);
-    let mut samples = ones.hcat(raw_samples);
-    let samples_ptr = samples.as_ptr();
-    let targets = dataset.target();
-    let sample_num = samples.rows();
-    let feature_num = samples.cols();
-    let batch_num = sample_num/batch_size;
-    let mut batch = Vec::with_capacity(1000);
-    for i in 0..batch_num {
-        batch.push(samples.sub_slice([batch_size*i, 0], batch_size, feature_num));
-    }
-    let mut batch_ptr: [*const u8;2] = [ptr::null();2];
-    for i in 0..batch_ptr.len() {
-        batch_ptr[i] = unsafe {
-            mem::transmute::<*const f64, *const u8>(batch[i].as_ptr())
-        };
-    }
-    let mut iter = targets.chunks(batch_size);
-    let mut targets_ptr: [*mut u8;2] = [ptr::null_mut();2];
-    for i in 0..targets_ptr.len() {
-        targets_ptr[i] = unsafe{
-            mem::transmute::<*const f64, *mut u8>(iter.next().unwrap().as_ptr())
-         };
-    }*/
-    let std_dev = 4.0*L*((iters as f64)*((1.0/delta) as f64).log2()).sqrt()/((sample_num as f64)*eps);
-
     println!("Preparing Model...");
-    let mut model: [f64; MODEL] = [0.0; 5];
+    let std_dev = 4.0*L*((iters as f64)*((1.0/delta) as f64).log2()).sqrt()/((sample_num as f64)*eps);
+    let mut model: [f64; SAMPLE_COL_NUMBER] = [0.0; SAMPLE_COL_NUMBER];
     let model_ptr = unsafe{
-        mem::transmute::<&[f64; 5], *mut u8>(&model)
+        mem::transmute::<&[f64; SAMPLE_COL_NUMBER], *mut u8>(&model)
     };
-    let mut gradient: [f64; 5] = [0.0; 5];
+    let mut gradient: [f64; SAMPLE_COL_NUMBER] = [0.0; SAMPLE_COL_NUMBER];
     let gradient_ptr = unsafe{
-        mem::transmute::<&[f64; 5], *mut u8>(&gradient)
+        mem::transmute::<&[f64; SAMPLE_COL_NUMBER], *mut u8>(&gradient)
     };
 
     println!("Preparing Encryption Meta Data...");
@@ -372,70 +224,70 @@ fn main() {
     let mut model_mac: [u8;16] = [0;16];
     let mut gradient_mac: [u8;16] = [0;16];
 
-    println!("Encrypting Data...");
-    let mut batch_cipher: [[u8;2000];2] = [[0;2000];2];
-    let mut targets_cipher: [[u8;400];2] = [[0;400];2];
-    let mut model_cipher: [u8;40] = [0;40];
+    println!("Loading Liver Disorder Data...");
+    let mut batch_cipher: [[u8;BATCH_SIZE*SAMPLE_COL_NUMBER*8];2] = [[0;BATCH_SIZE*SAMPLE_COL_NUMBER*8];2];
+    let mut targets_cipher: [[u8;BATCH_SIZE*8];2] = [[0;BATCH_SIZE*8];2];
     let mut batch_cipher_ptr: [*mut u8;2] = [ptr::null_mut();2];
     let mut targets_cipher_ptr: [*mut u8;2] = [ptr::null_mut();2];
     for i in 0..batch_cipher.len() {
         batch_cipher_ptr[i] = unsafe{
-            mem::transmute::<&[u8;2000], *mut u8>(&batch_cipher[i])
+            mem::transmute::<&[u8;BATCH_SIZE*SAMPLE_COL_NUMBER*8], *mut u8>(&batch_cipher[i])
         };
     }
     for i in 0..targets_cipher.len() {
         targets_cipher_ptr[i] = unsafe{
-            mem::transmute::<&[u8;400], *mut u8>(&targets_cipher[i])
+            mem::transmute::<&[u8;BATCH_SIZE*8], *mut u8>(&targets_cipher[i])
         };
     }
+    for i in 0..2 {
+        let mut sample_file: String = "../datasets/liver-disorders-train_encrypted_sample_".to_owned();
+        let mut sample_mac_file: String = "../datasets/liver-disorders-train_mac_sample_".to_owned();
+        let mut target_file: String = "../datasets/liver-disorders-train_encrypted_target_".to_owned();
+        let mut target_mac_file: String = "../datasets/liver-disorders-train_mac_target_".to_owned();
+        let batch_index = i.to_string();
+        sample_file.push_str(&batch_index);
+        sample_mac_file.push_str(&batch_index);
+        target_file.push_str(&batch_index);
+        target_mac_file.push_str(&batch_index);
+        println!("{}", sample_file);
+        println!("{}", sample_mac_file);
+        println!("{}", target_file);
+        println!("{}", target_mac_file);
+        read_file(sample_file, &mut batch_cipher[i]);
+        read_file(sample_mac_file, &mut inputs_mac[i]);
+        read_file(target_file, &mut targets_cipher[i]);
+        read_file(target_mac_file, &mut targets_mac[i]);
+        // println!("mac array {:x?}", &mac_array[..]);
+    }
+
+    println!("Encrypting Model...");
+   let mut model_cipher: [u8;SAMPLE_COL_NUMBER*8] = [0;SAMPLE_COL_NUMBER*8];
     let model_cipher_ptr = unsafe{
-        mem::transmute::<&[u8;40], *mut u8>(&model_cipher)
+        mem::transmute::<&[u8;SAMPLE_COL_NUMBER*8], *mut u8>(&model_cipher)
     };
-    for i in 0..batch_cipher.len() {
-        let sgx_ret = unsafe{
-            aes_gcm_128_encrypt(enclave.geteid(),
-                                &mut retval,
-                                &aes_gcm_key,
-                                batch_ptr[i],
-                                2000,
-                                &aes_gcm_iv,
-                                batch_cipher_ptr[i],
-                                &mut inputs_mac[i])
-        };
-        let sgx_ret = unsafe{
-            aes_gcm_128_encrypt(enclave.geteid(),
-                                &mut retval,
-                                &aes_gcm_key,
-                                targets_ptr[i],
-                                400,
-                                &aes_gcm_iv,
-                                targets_cipher_ptr[i],
-                                &mut targets_mac[i])
-        };
-    }
     let sgx_ret = unsafe{
         aes_gcm_128_encrypt(enclave.geteid(),
                             &mut retval,
                             &aes_gcm_key,
                             model_ptr,
-                            40,
+                            SAMPLE_COL_NUMBER*8,
                             &aes_gcm_iv,
                             model_cipher_ptr,
                             &mut model_mac)
     };
 
-
+    println!("Training...");
     for i in 0..iters {
         let batch_index = i%batch_num;
         let sgx_ret = unsafe{
             compute_grad(enclave.geteid(),
                          &mut retval,
                          model_cipher_ptr,
-                         feature_num,
+                         SAMPLE_COL_NUMBER,
                          batch_cipher_ptr[batch_index],
-                         feature_num*batch_size,
+                         SAMPLE_COL_NUMBER*BATCH_SIZE,
                          targets_cipher_ptr[batch_index],
-                         batch_size,
+                         BATCH_SIZE,
                          gradient_ptr,
                          &aes_gcm_key,
                          &aes_gcm_iv,
@@ -449,7 +301,7 @@ fn main() {
                              &mut retval,
                              std_dev,
                              gradient_ptr,
-                             feature_num,
+                             SAMPLE_COL_NUMBER,
                              &aes_gcm_key,
                              &aes_gcm_iv,
                              &mut gradient_mac)
@@ -459,7 +311,7 @@ fn main() {
                          &mut retval,
                          model_cipher_ptr,
                          gradient_ptr,
-                         feature_num,
+                         SAMPLE_COL_NUMBER,
                          alpha,
                          &aes_gcm_key,
                          &aes_gcm_iv,
@@ -468,9 +320,9 @@ fn main() {
         };
     }
 
-    let decrypted_model: [f64;5] = [0.0;5];
+    let decrypted_model: [f64;SAMPLE_COL_NUMBER] = [0.0;SAMPLE_COL_NUMBER];
     let decrypted_model_ptr = unsafe{
-        mem::transmute::<&[f64;5], *mut u8>(&decrypted_model)
+        mem::transmute::<&[f64;SAMPLE_COL_NUMBER], *mut u8>(&decrypted_model)
     };
     let decrypted_model_float_ptr = &decrypted_model as *const f64;
     let sgx_ret = unsafe{
@@ -478,32 +330,49 @@ fn main() {
                             &mut retval,
                             &aes_gcm_key,
                             model_cipher_ptr,
-                            40,
+                            SAMPLE_COL_NUMBER*8,
                             &aes_gcm_iv,
                             &mut model_mac,
                             decrypted_model_ptr)
     };
     println!("{:?}", decrypted_model);
 
-    let mut result: [f64; 100] = [0.0; 100];
+    let mut test_samples: [f64;69*6] = [0.0;69*6];
+    let mut test_targets: [f64;69] = [0.0;69];
+    let mut rdr = csv::ReaderBuilder::new().has_headers(false).from_path("../datasets/liver-disorders-test.csv").unwrap();
+    let mut test_samples_cnt = 0;
+    let mut test_targets_cnt = 0;
+    for result in rdr.records() {
+        let record = result.unwrap();
+        test_targets[test_targets_cnt] = record.get(0).unwrap().parse::<f64>().unwrap();
+        test_targets_cnt = test_targets_cnt + 1;
+        for i in 1..7 {
+            test_samples[test_samples_cnt] = record.get(i).unwrap().parse::<f64>().unwrap();
+            test_samples_cnt = test_samples_cnt + 1;
+        }
+    }
+    let test_samples_ptr = unsafe {
+        mem::transmute::<&[f64;69*6], *const f64>(&test_samples)
+    };
+    let mut result: [f64; 69] = [0.0; 69];
     let result_ptr = unsafe{
-        mem::transmute::<&[f64; 100], *mut f64>(&result)
+        mem::transmute::<&[f64; 69], *mut f64>(&result)
     };
     let sgx_ret = unsafe{
         predict(enclave.geteid(),
                 &mut retval,
                 decrypted_model_float_ptr,
-                feature_num,
-                samples_ptr,
-                feature_num*100,
+                SAMPLE_COL_NUMBER,
+                test_samples_ptr,
+                SAMPLE_COL_NUMBER*69,
                 result_ptr,
-                100)
+                69)
     };
-    /* for i in result.into_iter() {
+    for i in result.into_iter() {
         println!("{}", i);
-    }*/
+    }
     let classes = result.into_iter().map(|x|if *x > 0.5 {return 1.0;} else {return 0.0;}).collect::<Vec<_>>();
-    let matching = classes.into_iter().zip(targets.into_iter()).filter(|(a, b)| a==*b ).count();
+    let matching = classes.into_iter().zip(test_targets.into_iter()).filter(|(a, b)| a==*b ).count();
     println!("Correct Number is {}", matching);
  
     enclave.destroy();
