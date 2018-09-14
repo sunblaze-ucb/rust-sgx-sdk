@@ -6,7 +6,7 @@
 
 `$ export SGX_MODE=SW` 
 
-`$ cd samplecode/dpml-sgd`
+`$ cd samplecode/test`
 
 `$ make`
 
