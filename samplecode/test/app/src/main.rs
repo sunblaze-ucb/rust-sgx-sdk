@@ -53,10 +53,13 @@ use rulinalg::vector::Vector;
 use rulinalg::norm;
 
 const BATCH_SIZE: usize = 100;
-const SAMPLE_COL_NUMBER: usize = 6;
+const SAMPLE_COL_NUMBER: usize = 53;
 const TARGET_COL_NUMBER: usize = 1;
 const MAC_BYTE_NUMBER: usize = 16;
 const IV_BYTE_NUMBER: usize = 12;
+const TEST_SAMPLE_NUMBER: usize = 8190;
+const BATCH_NUMBER: usize = 326;
+const SAMPLE_NUMBER: usize = BATCH_SIZE*BATCH_NUMBER;
 
 /// Dataset container
 #[derive(Clone, Debug)]
@@ -177,6 +180,14 @@ fn init_enclave() -> SgxResult<SgxEnclave> {
     Ok(enclave)
 }
 
+static mut batch_cipher: [[u8;BATCH_SIZE*SAMPLE_COL_NUMBER*8];BATCH_NUMBER] = [[0;BATCH_SIZE*SAMPLE_COL_NUMBER*8];BATCH_NUMBER];
+static mut targets_cipher: [[u8;BATCH_SIZE*8];BATCH_NUMBER] = [[0;BATCH_SIZE*8];BATCH_NUMBER];
+static mut batch_cipher_ptr: [*mut u8;BATCH_NUMBER] = [ptr::null_mut();BATCH_NUMBER];
+static mut targets_cipher_ptr: [*mut u8;BATCH_NUMBER] = [ptr::null_mut();BATCH_NUMBER];
+static mut model: [f64; SAMPLE_COL_NUMBER] = [0.0; SAMPLE_COL_NUMBER];
+static mut gradient: [f64; SAMPLE_COL_NUMBER] = [0.0; SAMPLE_COL_NUMBER];
+static mut model_cipher: [u8;SAMPLE_COL_NUMBER*8] = [0;SAMPLE_COL_NUMBER*8];
+
 fn main() { 
     let enclave = match init_enclave() {
         Ok(r) => {
@@ -191,27 +202,23 @@ fn main() {
 
     let mut retval = sgx_status_t::SGX_SUCCESS; 
 
-    println!("Test DP-SGD on Iris Dataset...");
-
-    println!("Setting Meta Data...");
-    let batch_size = 100;
-    let batch_num = 2; 
-    let sample_num = 200;
+    println!("Setting Meta Data..."); 
+    //let sample_num = 200;
     let alpha = 0.1;
     let iters = 10000;
     // We do not have regularization term here so this is 1 for LR.
     let L = 1.0;
     // We now hard-code the eps and delta here, will change this to the arguments later.
     let eps = 1.0;
-    let delta = 0.00001;
+    let delta = 1.0/((SAMPLE_NUMBER as f64)*(SAMPLE_NUMBER as f64));
 
     println!("Preparing Model...");
-    let std_dev = 4.0*L*((iters as f64)*((1.0/delta) as f64).log2()).sqrt()/((sample_num as f64)*eps);
-    let mut model: [f64; SAMPLE_COL_NUMBER] = [0.0; SAMPLE_COL_NUMBER];
+    let std_dev = 4.0*L*((iters as f64)*((1.0/delta) as f64).log2()).sqrt()/((SAMPLE_NUMBER as f64)*eps);
+    // let mut model: [f64; SAMPLE_COL_NUMBER] = [0.0; SAMPLE_COL_NUMBER];
     let model_ptr = unsafe{
         mem::transmute::<&[f64; SAMPLE_COL_NUMBER], *mut u8>(&model)
     };
-    let mut gradient: [f64; SAMPLE_COL_NUMBER] = [0.0; SAMPLE_COL_NUMBER];
+    // let mut gradient: [f64; SAMPLE_COL_NUMBER] = [0.0; SAMPLE_COL_NUMBER];
     let gradient_ptr = unsafe{
         mem::transmute::<&[f64; SAMPLE_COL_NUMBER], *mut u8>(&gradient)
     };
@@ -219,31 +226,27 @@ fn main() {
     println!("Preparing Encryption Meta Data...");
     let aes_gcm_key: [u8;16] = [0;16];
     let aes_gcm_iv: [u8;12] = [0;12];
-    let mut inputs_mac: [[u8;16];2] = [[0;16];2];
-    let mut targets_mac: [[u8;16];2] = [[0;16];2];
+    let mut inputs_mac: [[u8;16];BATCH_NUMBER] = [[0;16];BATCH_NUMBER];
+    let mut targets_mac: [[u8;16];BATCH_NUMBER] = [[0;16];BATCH_NUMBER];
     let mut model_mac: [u8;16] = [0;16];
     let mut gradient_mac: [u8;16] = [0;16];
 
-    println!("Loading Liver Disorder Data...");
-    let mut batch_cipher: [[u8;BATCH_SIZE*SAMPLE_COL_NUMBER*8];2] = [[0;BATCH_SIZE*SAMPLE_COL_NUMBER*8];2];
-    let mut targets_cipher: [[u8;BATCH_SIZE*8];2] = [[0;BATCH_SIZE*8];2];
-    let mut batch_cipher_ptr: [*mut u8;2] = [ptr::null_mut();2];
-    let mut targets_cipher_ptr: [*mut u8;2] = [ptr::null_mut();2];
-    for i in 0..batch_cipher.len() {
-        batch_cipher_ptr[i] = unsafe{
-            mem::transmute::<&[u8;BATCH_SIZE*SAMPLE_COL_NUMBER*8], *mut u8>(&batch_cipher[i])
-        };
+    println!("Loading Data...");
+    /*let mut batch_cipher: [[u8;BATCH_SIZE*SAMPLE_COL_NUMBER*8];BATCH_NUMBER] = [[0;BATCH_SIZE*SAMPLE_COL_NUMBER*8];BATCH_NUMBER];
+    let mut targets_cipher: [[u8;BATCH_SIZE*8];BATCH_NUMBER] = [[0;BATCH_SIZE*8];BATCH_NUMBER];
+    let mut batch_cipher_ptr: [*mut u8;BATCH_NUMBER] = [ptr::null_mut();BATCH_NUMBER];
+    let mut targets_cipher_ptr: [*mut u8;BATCH_NUMBER] = [ptr::null_mut();BATCH_NUMBER];*/
+    for i in 0..BATCH_NUMBER {
+        unsafe {
+            batch_cipher_ptr[i] = mem::transmute::<&[u8;BATCH_SIZE*SAMPLE_COL_NUMBER*8], *mut u8>(&batch_cipher[i]);
+            targets_cipher_ptr[i] = mem::transmute::<&[u8;BATCH_SIZE*8], *mut u8>(&targets_cipher[i]);
+        }
     }
-    for i in 0..targets_cipher.len() {
-        targets_cipher_ptr[i] = unsafe{
-            mem::transmute::<&[u8;BATCH_SIZE*8], *mut u8>(&targets_cipher[i])
-        };
-    }
-    for i in 0..2 {
-        let mut sample_file: String = "../datasets/liver-disorders-train_encrypted_sample_".to_owned();
-        let mut sample_mac_file: String = "../datasets/liver-disorders-train_mac_sample_".to_owned();
-        let mut target_file: String = "../datasets/liver-disorders-train_encrypted_target_".to_owned();
-        let mut target_mac_file: String = "../datasets/liver-disorders-train_mac_target_".to_owned();
+    for i in 0..BATCH_NUMBER {
+        let mut sample_file: String = "../datasets/facebook_train_encrypted_sample_".to_owned();
+        let mut sample_mac_file: String = "../datasets/facebook_train_mac_sample_".to_owned();
+        let mut target_file: String = "../datasets/facebook_train_encrypted_target_".to_owned();
+        let mut target_mac_file: String = "../datasets/facebook_train_mac_target_".to_owned();
         let batch_index = i.to_string();
         sample_file.push_str(&batch_index);
         sample_mac_file.push_str(&batch_index);
@@ -253,15 +256,17 @@ fn main() {
         println!("{}", sample_mac_file);
         println!("{}", target_file);
         println!("{}", target_mac_file);
-        read_file(sample_file, &mut batch_cipher[i]);
-        read_file(sample_mac_file, &mut inputs_mac[i]);
-        read_file(target_file, &mut targets_cipher[i]);
-        read_file(target_mac_file, &mut targets_mac[i]);
+        unsafe {
+            read_file(sample_file, &mut batch_cipher[i]);
+            read_file(sample_mac_file, &mut inputs_mac[i]);
+            read_file(target_file, &mut targets_cipher[i]);
+            read_file(target_mac_file, &mut targets_mac[i]);
+        }
         // println!("mac array {:x?}", &mac_array[..]);
     }
 
     println!("Encrypting Model...");
-   let mut model_cipher: [u8;SAMPLE_COL_NUMBER*8] = [0;SAMPLE_COL_NUMBER*8];
+    // let mut model_cipher: [u8;SAMPLE_COL_NUMBER*8] = [0;SAMPLE_COL_NUMBER*8];
     let model_cipher_ptr = unsafe{
         mem::transmute::<&[u8;SAMPLE_COL_NUMBER*8], *mut u8>(&model_cipher)
     };
@@ -278,7 +283,7 @@ fn main() {
 
     println!("Training...");
     for i in 0..iters {
-        let batch_index = i%batch_num;
+        let batch_index = i%BATCH_NUMBER;
         let sgx_ret = unsafe{
             compute_grad(enclave.geteid(),
                          &mut retval,
@@ -335,28 +340,33 @@ fn main() {
                             &mut model_mac,
                             decrypted_model_ptr)
     };
-    println!("{:?}", decrypted_model);
+    for i in 0..SAMPLE_COL_NUMBER {
+        println!("{}", decrypted_model[i]);
+    }
+    // println!("{:?}", decrypted_model);
 
-    let mut test_samples: [f64;69*6] = [0.0;69*6];
-    let mut test_targets: [f64;69] = [0.0;69];
-    let mut rdr = csv::ReaderBuilder::new().has_headers(false).from_path("../datasets/liver-disorders-test.csv").unwrap();
+    let mut test_samples: [f64;TEST_SAMPLE_NUMBER*SAMPLE_COL_NUMBER] = [0.0;TEST_SAMPLE_NUMBER*SAMPLE_COL_NUMBER];
+    let mut test_targets: [f64;TEST_SAMPLE_NUMBER] = [0.0;TEST_SAMPLE_NUMBER];
+    let mut rdr = csv::ReaderBuilder::new().has_headers(false).from_path("../datasets/facebook_test.csv").unwrap();
     let mut test_samples_cnt = 0;
     let mut test_targets_cnt = 0;
     for result in rdr.records() {
         let record = result.unwrap();
         test_targets[test_targets_cnt] = record.get(0).unwrap().parse::<f64>().unwrap();
         test_targets_cnt = test_targets_cnt + 1;
-        for i in 1..7 {
+        for i in 1..SAMPLE_COL_NUMBER+1 {
             test_samples[test_samples_cnt] = record.get(i).unwrap().parse::<f64>().unwrap();
             test_samples_cnt = test_samples_cnt + 1;
         }
     }
+    println!("{}", test_targets_cnt);
+    println!("{}", test_samples_cnt);
     let test_samples_ptr = unsafe {
-        mem::transmute::<&[f64;69*6], *const f64>(&test_samples)
+        mem::transmute::<&[f64;TEST_SAMPLE_NUMBER*SAMPLE_COL_NUMBER], *const f64>(&test_samples)
     };
-    let mut result: [f64; 69] = [0.0; 69];
+    let mut result: [f64; TEST_SAMPLE_NUMBER] = [0.0; TEST_SAMPLE_NUMBER];
     let result_ptr = unsafe{
-        mem::transmute::<&[f64; 69], *mut f64>(&result)
+        mem::transmute::<&[f64; TEST_SAMPLE_NUMBER], *mut f64>(&result)
     };
     let sgx_ret = unsafe{
         predict(enclave.geteid(),
@@ -364,11 +374,11 @@ fn main() {
                 decrypted_model_float_ptr,
                 SAMPLE_COL_NUMBER,
                 test_samples_ptr,
-                SAMPLE_COL_NUMBER*69,
+                SAMPLE_COL_NUMBER*TEST_SAMPLE_NUMBER,
                 result_ptr,
-                69)
+                TEST_SAMPLE_NUMBER)
     };
-    for i in result.into_iter() {
+    for i in result.iter() {
         println!("{}", i);
     }
     let classes = result.into_iter().map(|x|if *x > 0.5 {return 1.0;} else {return 0.0;}).collect::<Vec<_>>();

@@ -87,8 +87,8 @@ int ServiceProvider::sp_ra_proc_msg1_req(Messages::MessageMSG1 msg1, Messages::M
         bool error = false;
         error = this->ws->getSigRL(ByteArrayToString(GID, 4), &sigRl);
 
-        /*if (error)
-            return SP_RETRIEVE_SIGRL_ERROR;*/
+        if (error)
+            return SP_RETRIEVE_SIGRL_ERROR;
 
         uint8_t *sig_rl;
         uint32_t sig_rl_size = StringToByteArray(sigRl, &sig_rl);
@@ -447,7 +447,7 @@ int ServiceProvider::sp_ra_proc_msg3_req(Messages::MessageMSG3 msg, Messages::At
 
         // Verify quote with attestation server.
         ias_att_report_t attestation_report = {0};
-        //ret = ias_verify_attestation_evidence(p_msg3->quote, p_msg3->ps_sec_prop.sgx_ps_sec_prop_desc, &attestation_report, ws);
+        ret = ias_verify_attestation_evidence(p_msg3->quote, p_msg3->ps_sec_prop.sgx_ps_sec_prop_desc, &attestation_report, ws);
         ret = 0;
 
         if (0 != ret) {

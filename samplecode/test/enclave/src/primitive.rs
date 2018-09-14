@@ -264,7 +264,7 @@ fn compute_grad(params: *const u8,
     let outputs = (inputs_mat * beta_vec).apply(&Sigmoid::func);
     let cost = CrossEntropyError::cost(&outputs, targets_vec);
     let mut result = (inputs_mat.transpose() * (outputs - targets_vec)) / (inputs_mat.rows() as f64);
-    //println!("{:?}", result.data());
+    // println!("computed gradient:{:?}", result.data());
 
     //println!("[+] Encrypting Data...");
     let result_ptr = unsafe{
@@ -320,6 +320,8 @@ fn update_model(model: *mut u8,
                                                     &aad_array,
                                                     model_mac,
                                                     &mut model_slice);
+    // println!("model before updated: {:?}", model_vec);
+
     // println!("[++] Decrypting Gradient...");
     let e_gradient_slice = unsafe { slice::from_raw_parts(gradient, model_len*8) };
     let mut gradient_vec: Vec<f64> = vec![0.0;model_len];
@@ -334,9 +336,11 @@ fn update_model(model: *mut u8,
                                                       &aad_array,
                                                       gradient_mac,
                                                       &mut gradient_slice);
+    // println!("gradient used to update the model:{:?}", gradient_vec);
 
     // println!("[++] Updating Model...");
     let mut result = Vector::new(model_vec) - Vector::new(gradient_vec) * alpha;
+    // println!("updated_model: {:?}", result.data());
     /*for i in 0..20 {
        println!("{}", e_gradient_slice[i]);
     }*/

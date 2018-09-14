@@ -37,12 +37,12 @@ namespace Settings {
     static int rh_port = 22222;
     static string rh_host = "localhost";
 
-    static string server_crt = "/root/.certificate/server.crt"; //certificate for the HTTPS connection between the SP and the App
-    static string server_key = "/root/.certificate/server.key"; //private key for the HTTPS connection
+    static string server_crt = "/root/sgx/samplecode/remoteattestation/cert_and_key.pem"; //certificate for the HTTPS connection between the SP and the App
+    static string server_key = "/root/sgx/samplecode/remoteattestation/cert_and_key.pem"; //private key for the HTTPS connection
 
-    static string spid = ""; //SPID provided by Intel after registration for the IAS service
-    static const char *ias_crt = "/root/.certificate/server.crt"; //location of the certificate send to Intel when registring for the IAS
-    static string ias_url = "https://test-as.sgx.trustedservices.intel.com:443/attestation/sgx/v2/";
+    static string spid = "7FEC42B78D1F674E4AC01E0E8F76F0DE"; //SPID provided by Intel after registration for the IAS service
+    static const char *ias_crt = "/root/sgx/samplecode/remoteattestation/cert_and_key.pem"; //location of the certificate send to Intel when registring for the IAS
+    static string ias_url = "https://test-as.sgx.trustedservices.intel.com:443/attestation/sgx/v3/";
 }
 
 #endif

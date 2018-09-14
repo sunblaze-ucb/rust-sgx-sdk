@@ -95,7 +95,7 @@ def read_split_encrypt_data(dataset_file, batch_size, data_type):
 #print "aes-gcm-128 expected ciphertext:0388dace60b6a392f328c2b971b2fe78"
 # process csv data
 batch_size = 100
-read_split_encrypt_data("datasets/liver-disorders-train.csv", batch_size, 'sample')
-read_split_encrypt_data("datasets/liver-disorders-train.csv", batch_size, 'target')
-# read_split_encrypt_data("../datasets/credit-score-train.csv", batch_size, 'sample')
-# read_split_encrypt_data("../datasets/credit-score-train.csv", batch_size, 'target')
+# read_split_encrypt_data("datasets/liver-disorders-train.csv", batch_size, 'sample')
+# read_split_encrypt_data("datasets/liver-disorders-train.csv", batch_size, 'target')
+read_split_encrypt_data("datasets/facebook_train.csv", batch_size, 'sample')
+read_split_encrypt_data("datasets/facebook_train.csv", batch_size, 'target')

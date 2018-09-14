@@ -45,6 +45,7 @@ int Main(int argc, char *argv[]) {
     vm->init();
     vm->start();
 
+    Log("I'm here");
     return ret;
 }
 
@@ -52,6 +53,7 @@ int Main(int argc, char *argv[]) {
 int main( int argc, char **argv ) {
     try {
         int ret = Main(argc, argv);
+        Log("I'm also here");
         return ret;
     } catch (std::exception & e) {
         Log("exception: %s", e.what());
