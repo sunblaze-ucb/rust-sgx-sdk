@@ -67,7 +67,7 @@ void AbstractNetworkOps::read() {
         if ((boost::asio::error::eof == ec) || (boost::asio::error::connection_reset == ec)) {
             Log("Connection has been closed by remote host");
         } else {
-            Log("Unknown socket error while reading occured!", log::error);
+            //Log("Unknown socket error while reading occured!", log::error);
         }
     } else {
         vector<string> incomming;

@@ -152,9 +152,9 @@ fn add_normal_noise(std_dev: f64,
                     gradient_mac: &mut [u8;16])
                     -> sgx_status_t {
 
-    println!("Adding normal noise...");
+    // println!("Adding normal noise...");
 
-    println!("[+] Decrypting data...");
+    // println!("[+] Decrypting data...");
     let ciphertext_slice = unsafe { slice::from_raw_parts(gradient, len*8) };
     let mut plaintext_vec: Vec<f64> = vec![0.0;len];
     let mut plaintext_ptr = unsafe {
@@ -169,16 +169,16 @@ fn add_normal_noise(std_dev: f64,
                                                gradient_mac,
                                                &mut plaintext_slice);
 
-    println!("[+] Adding noise...");
-    println!("[+] plain text length {} {}", plaintext_vec.len(), len);
+    // println!("[+] Adding noise...");
+    // println!("[+] plain text length {} {}", plaintext_vec.len(), len);
     let mut result = Vector::new(&plaintext_vec[..])+normal_vector(std_dev, len);
-    println!("[+] After adding noise...");
+    // println!("[+] After adding noise...");
     let result_ptr = unsafe{
         mem::transmute::<*const f64, *const u8>(result.data().as_ptr())
     };
     let result_slice = unsafe { slice::from_raw_parts(result_ptr, len*8) };
 
-    println!("[+] Encrypting Data...");
+    // println!("[+] Encrypting Data...");
     let mut ciphertext_vec: Vec<u8> = vec![0; len*8];
     let ciphertext_slice = &mut ciphertext_vec[..];
     let mut mac_array: [u8; 16] = [0; 16];
@@ -215,10 +215,10 @@ fn compute_grad(params: *const u8,
                 gradient_mac: &mut [u8;16])
                 -> sgx_status_t {
 
-    println!("Computing Gradient");
+    // println!("Computing Gradient");
 
-    //println!("[+] Decrypting Data...");
-    //println!("[++] Decrypting Params...");
+    // println!("[+] Decrypting Data...");
+    // println!("[++] Decrypting Params...");
     let e_params_slice = unsafe { slice::from_raw_parts(params, params_len*8) };
     let mut params_vec: Vec<f64> = vec![0.0;params_len];
     let mut params_ptr = unsafe {
@@ -310,7 +310,7 @@ fn update_model(model: *mut u8,
                 gradient_mac: &[u8;16])
                 -> sgx_status_t {
 
-    println!("Updating Model...");
+    // println!("Updating Model...");
 
     // println!("[++] Decrypting Model...");
     let e_model_slice = unsafe { slice::from_raw_parts(model, model_len*8) };
@@ -379,17 +379,27 @@ fn update_model(model: *mut u8,
 
 #[no_mangle]
 pub extern "C"
-fn predict(model: *const f64, 
+fn sgx_predict(model: *const f64, 
            model_len: usize, 
            samples: *const f64, 
            samples_len: usize, 
            prediction: *mut f64, 
            prediction_len: usize) -> sgx_status_t {
+    // println!("I am in the enclave");
     let model_slice = unsafe { slice::from_raw_parts(model, model_len)};
     let model_vec = &Vector::new(model_slice.to_vec());
+    /* for i in 0..20 {
+        println!("{}", model_slice[i]);
+    }*/
     let samples_slice = unsafe { slice::from_raw_parts(samples, samples_len)};
+    /*for i in 0..20 {
+        println!("{}", samples_slice[i]);
+    }*/
     let samples_mat = &Matrix::new(prediction_len, model_len, samples_slice);
     let mut result = (samples_mat * model_vec).apply(&Sigmoid::func);
+    /* for i in 0..20 {
+        println!("#{}", result[i]);
+    }*/
     unsafe{
         ptr::copy_nonoverlapping(result.mut_data().as_ptr(),
                                  prediction,

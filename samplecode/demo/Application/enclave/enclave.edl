@@ -89,7 +89,7 @@ enclave {
                                          [in, out] uint8_t model_mac[16],
                                          [in] uint8_t gradient_mac[16]);
 
-        public sgx_status_t predict([in, size=model_len, count=8] const double* model,
+        public sgx_status_t sgx_predict([in, size=model_len, count=8] const double* model,
                                     size_t model_len,
                                     [in, size=samples_len, count=8] const double* samples,
                                     size_t samples_len,

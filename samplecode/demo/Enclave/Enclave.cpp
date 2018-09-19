@@ -139,6 +139,26 @@ inline void readBytes(char* filename, uint8_t* byte_array, int length) {
     else printf("file not found: %s", filename);
 }
 
+inline void readCSV(char* filename, double* data_array, double* label_array, int row, int col) {
+    ifstream ifs(filename, ios::binary);
+    if(ifs) {
+        char delim;
+        int label_cnt = 0;
+        int data_cnt = 0;
+        for(int i = 0; i < row; ++i) {
+            ifs >> label_array[label_cnt];
+            ++label_cnt;
+            ifs >> delim;
+            for(int j = 0; j < col; ++j) {
+                ifs >> data_array[data_cnt];
+                ++data_cnt;
+                if(j!=col-1) ifs >> delim;
+            }
+        }
+    }
+    else printf("test file not found: %s", filename);
+}
+
 sgx_status_t Enclave::trainModel() {
     sgx_status_t ret;
 
@@ -184,7 +204,8 @@ sgx_status_t Enclave::trainModel() {
     for(int i = 0; i < BATCH_NUMBER; ++i) {
         targets_cipher[i] = new uint8_t[BATCH_SIZE*8];
     }
-    Log("Read Success...");
+
+    Log("Read Training Data Files...");
     char sample_name[256];
     char sample_mac_name[256];
     char target_name[256];
@@ -257,9 +278,67 @@ sgx_status_t Enclave::trainModel() {
                               aes_gcm_iv,
                               model_mac,
                               (uint8_t*)decrypted_model);
+
+    Log("Printing Trained Model...");
     for (int i = 0; i < SAMPLE_COL_NUMBER; ++i) {
         printf("%lf ", decrypted_model[i]);
     }
     printf("\n");
+
+    /*Log("Freeing Training Memory...");
+    delete[] model;
+    delete[] gradient;
+    for(int i = 0; i < BATCH_NUMBER; ++i) {
+        delete[] targets_mac[i];
+    }
+    delete[] model_mac;
+    delete[] gradient_mac;
+    for(int i = 0; i < BATCH_NUMBER; ++i) {
+        delete[] batch_cipher[i];
+    }
+    for(int i = 0; i < BATCH_NUMBER; ++i) {
+        delete[] targets_cipher[i];
+    }*/
+
+    /*Log("Loading Test Dataset...");
+    double* test_data = new double[TEST_SAMPLE_NUMBER*SAMPLE_COL_NUMBER];
+    double* test_labels = new double[TEST_SAMPLE_NUMBER];
+    double* test_result = new double[TEST_SAMPLE_NUMBER];
+    char test_name[256];
+    sprintf(test_name, "../Datasets/facebook_test.csv");
+    readCSV(test_name, test_data, test_labels, TEST_SAMPLE_NUMBER, SAMPLE_COL_NUMBER);
+    for(int i = 0; i < 100; ++i) {
+        printf("#%lf ", test_data[i]);
+    }
+    printf("\n");
+    for(int i = 0; i < 100; ++i) {
+        printf("*%lf ", test_labels[i]);
+    }
+    printf("\n");
+
+    Log("Predicting...");
+    ret = sgx_predict(this->enclave_id,
+                      &this->status,
+                      decrypted_model,
+                      SAMPLE_COL_NUMBER,
+                      test_data,
+                      TEST_SAMPLE_NUMBER*SAMPLE_COL_NUMBER,
+                      test_result,
+                      TEST_SAMPLE_NUMBER);
+    int correct_num = 0;
+    for(int i = 0; i < TEST_SAMPLE_NUMBER; ++i) {
+        double sample_res = 0.0;
+        if(test_result[i] > 0.5) sample_res = 1.0;
+        // if(!(i%100)) printf("%lf %lf %lf\n", test_result[i], sample_res, test_labels);
+        if(test_labels[i] == sample_res) ++correct_num;
+    }
+    printf("Correct Ratio is %lf\n", (double)correct_num/TEST_SAMPLE_NUMBER);*/
+
+    /*Log("Freeing Testing Memory");
+    delete[] decrypted_model;
+    delete[] test_data;
+    delete[] test_labels;
+    delete[] test_result;*/
+
     return SGX_SUCCESS;
 }
