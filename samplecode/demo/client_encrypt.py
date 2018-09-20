@@ -23,12 +23,28 @@ def decrypt(key, associated_data, iv, ciphertext, tag):
     # Inclued additional message for MAC calculation and verify the integraty
     decryptor.authenticate_additional_data(associated_data)
     return decryptor.update(ciphertext) + decryptor.finalize()
+def normalize_test_data_set(dataset_file):
+    dataset_normalized_file = dataset_file[:-4] + "_normalized" + dataset_file[-4:]
+    with open(dataset_file) as f:
+        ncols = len(f.readline().split(','))
+    dataset_np = np.loadtxt(dataset_file, dtype='d', delimiter=',', usecols=range(0,ncols))
+    #print "dataset_np", dataset_np
+    dataset_sample_np = dataset_np[:, 1:]
+    #print "dataset_sample_np", dataset_sample_np
+    for i in range(len(dataset_sample_np[0])):
+        if dataset_sample_np[:, i].max() - dataset_sample_np[:, i].min() != 0:
+            dataset_sample_np[:, i] = (dataset_sample_np[:, i] - dataset_sample_np[:, i].mean()) / (dataset_sample_np[:, i].max() - dataset_sample_np[:, i].min())
+    #print "dataset_sample_np_normalized", dataset_sample_np
+    dataset_np[:, 1:] = dataset_sample_np
+    #print "dataset_np", dataset_np
+    np.savetxt(dataset_normalized_file, dataset_np, delimiter=",”)
+
 # read a CSV file, define the batch size and data type to read. 
 # Then the sample/target batch will be encrypted and save to files.
 # dataset_file: path to dataset file
 # batch_size: number of rows for a batch
 # data_type: sample data or target data
-def read_split_encrypt_data(dataset_file, batch_size, data_type):
+def read_split_encrypt_data(dataset_file, batch_size, data_type, normalize=True):
     print "Processing ", data_type, " data..."
     #TODO: need to have a better key
     key_arr = [0x0] * 16
@@ -38,17 +54,23 @@ def read_split_encrypt_data(dataset_file, batch_size, data_type):
     with open(dataset_file) as f:
         ncols = len(f.readline().split(','))
     print 'The CSV has ', ncols, 'columns.'
-    if 'sample' == data_type: 
+    if 'sample' == data_type:
         # read a dataset and convert the numbers to be float
         # skip 1st column
         dataset_np = np.loadtxt(dataset_file, dtype='d', delimiter=',', usecols=range(1,ncols))
+        if normalize == True:
+            print("Normalizing data")
+            for i in range(len(dataset_np[0])):
+                if dataset_np[:, i].max() - dataset_np[:, i].min() != 0:
+                    dataset_np[:, i] = (dataset_np[:, i] - dataset_np[:, i].mean()) / (dataset_np[:, i].max() - dataset_np[:, i].min())
+            #dataset_np = (dataset_np - dataset_np.min(axis=0)) / (dataset_np.max(axis=0) - dataset_np.min(axis=0))
         ncols = ncols - 1
     elif 'target' == data_type:
         # only read 1st column for target
         dataset_np = np.loadtxt(dataset_file, dtype='d', delimiter=',', usecols=(0,))
         ncols = 1
-    print dataset_np
-    print len(dataset_np)
+    #print dataset_np
+    #print len(dataset_np)
     total_batch_number = len(dataset_np)/batch_size
     print "There are ", total_batch_number, "batches in the dataset. If the tail rows are less than the batch_size, they will be discarded."
     batch_count = 0
@@ -59,11 +81,11 @@ def read_split_encrypt_data(dataset_file, batch_size, data_type):
         # dump the array to byte array (the data type is string)
         dataset_np_byte_array = dataset_np[batch_start:batch_end].tobytes()
         #print "len(dataset_np_byte_array): ", len(dataset_np_byte_array)
-        print "dataset_np_byte_array hex: ", ":".join("{:02x}".format(ord(c)) for c in dataset_np_byte_array)
+        #print "dataset_np_byte_array hex: ", ":".join("{:02x}".format(ord(c)) for c in dataset_np_byte_array)
         # encrypt the byte array
         iv, dataset_np_byte_array_encrypted, mac = encrypt(key, dataset_np_byte_array, associated_text)
-        print "dataset_np_byte_array_encrypted hex: ", ":".join("{:02x}".format(ord(c)) for c in dataset_np_byte_array_encrypted)
-        print "mac hex: ", ":".join("{:02x}".format(ord(c)) for c in mac)
+        #print "dataset_np_byte_array_encrypted hex: ", ":".join("{:02x}".format(ord(c)) for c in dataset_np_byte_array_encrypted)
+        #print "mac hex: ", ":".join("{:02x}".format(ord(c)) for c in mac)
         DEBUG_MODE = False
         if True == DEBUG_MODE:
             # decrypt the ciphertext and check the result
@@ -77,7 +99,6 @@ def read_split_encrypt_data(dataset_file, batch_size, data_type):
         dataset_encrypted_file = dataset_file[:-4] + '_encrypted_' + data_type + '_' + str(batch_count)
         dataset_mac_file = dataset_file[:-4] + '_mac_' + data_type + '_' + str(batch_count)
         # dataset_iv_file = dataset_file[:-4] + '_iv_' + data_type + '_' + str(batch_count)
-        
         f =  open(dataset_encrypted_file, 'wb')
         f.write(dataset_np_byte_array_encrypted)
         f.close()
@@ -87,15 +108,18 @@ def read_split_encrypt_data(dataset_file, batch_size, data_type):
         # f = open(dataset_iv_file, 'wb')
         # f.write(iv)
         # f.close()
-        
         batch_count += 1
     return
+
 # validating using all zero key,iv, and 16 byte all zero data
 #read_split_encrypt_data("dataset.txt", 1, 'sample')
 #print "aes-gcm-128 expected ciphertext:0388dace60b6a392f328c2b971b2fe78"
+
 # process csv data
 batch_size = 100
-# read_split_encrypt_data("datasets/liver-disorders-train.csv", batch_size, 'sample')
-# read_split_encrypt_data("datasets/liver-disorders-train.csv", batch_size, 'target')
-read_split_encrypt_data("Datasets/facebook_train.csv", batch_size, 'sample')
-read_split_encrypt_data("Datasets/facebook_train.csv", batch_size, 'target')
+normalize=True
+path = "datasets/facebook_train.csv"
+read_split_encrypt_data(path, batch_size, 'sample', normalize=normalize)
+read_split_encrypt_data(path, batch_size, 'target', normalize=normalize)
+if normalize == True:
+    normalize_test_data_set("datasets/facebook_test.csv")
