@@ -17,9 +17,10 @@ Docker (Recommended)
 
 The demo codes reside in samplecode/demo. It is built on top of baidu rust-sgx-sdk. This repo is also a fork of the baidu rust-sgx-sdk.
 
-`$ docker pull baiduxlab/sgx-rust`
-
-`$ docker run -v /your/path/to/rust-sgx:/root/sgx -ti --device /dev/isgx baiduxlab/sgx-rust`
+```
+    $ docker pull baiduxlab/sgx-rust
+    $ docker run -v /your/path/to/rust-sgx:/root/sgx -ti --device /dev/isgx baiduxlab/sgx-rust
+```
 
 `$ export SGX_MODE=SW` 
 
