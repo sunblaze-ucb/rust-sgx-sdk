@@ -5,7 +5,11 @@ However, when the users want to train some private data like medical records or 
 Another concern is that the model itself can leak some privacy of the dataset which can be used to reconstruct some of the data samples. Differential privacy provides a formal approach to defend against this attack.
 As a result, we want to provide differential private machine learning on Intel SGX as a MLaaS on Ali Cloud. We implement [differential private stochastic gradient descent](http://cs-people.bu.edu/omthkkr/papers/TPDPCO.pdf) on Intel SGX on Ali cloud together with the complete workflow like remote attestation and file encryption on client side without SGX. Slides of the demo can be found [here](https://github.com/spartazhihu/spartazhihu.github.io/blob/master/files/Ali%20Cloud%20Computing%20Demo%20Slides.pptx).
 
-# Requirement
+## Dataset Requirement
+
+The dataset file should be provided in a csv format. The first column should be the targets represented by 0 or 1. Please move the file to `samplecode/demo/Datasets` and run the `client_encrypt.py` script under the root to encrypt the data. Note that the dataset file name needs to be added to the python file in the last two lines.
+
+## System Requirement
 
 Ubuntu 16.04
 
@@ -13,7 +17,7 @@ Ubuntu 16.04
 
 Docker (Recommended)
 
-# How to run the demo
+## How to run the demo
 
 The demo codes reside in samplecode/demo. It is built on top of baidu rust-sgx-sdk. This repo is also a fork of the baidu rust-sgx-sdk.
 
@@ -30,19 +34,18 @@ The demo codes reside in samplecode/demo. It is built on top of baidu rust-sgx-s
     $ ./app
 ```
 
-# License
+## License
 
 The demo is provided under the BSD license inherited from Baidu Rust-SGX SDK. Please refer to the [License file](LICENSE) for details.
 
-# Authors
+## Authors
 
 [Lun Wang](wanglunucb.com), Li Shen, Yanhui Zhao
 
-# Acknowledgement
+## Acknowledgement
 
 Thanks to [Baidu Rust-SGX SDK](https://github.com/baidu/rust-sgx-sdk) project.
 
-# Contacts
+## Contacts
 
 [Lun Wang](wanglunucb.com), wanglun@berkeley.edu
-
