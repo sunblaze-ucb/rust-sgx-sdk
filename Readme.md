@@ -20,23 +20,15 @@ The demo codes reside in samplecode/demo. It is built on top of baidu rust-sgx-s
 ```
     $ docker pull baiduxlab/sgx-rust
     $ docker run -v /your/path/to/rust-sgx:/root/sgx -ti --device /dev/isgx baiduxlab/sgx-rust
+    $ export SGX_MODE=SW
+    $ cd samplecode/demo
+    $ cd Application
+    $ make
+    $ ./app &
+    $ cd ../ServiceProvider
+    $ make
+    $ ./app
 ```
-
-`$ export SGX_MODE=SW` 
-
-`$ cd samplecode/demo`
-
-`$ cd Application`
-
-`make`
-
-`./app &`
-
-`$ cd ../ServiceProvider`
-
-`make`
-
-`$ ./app`
 
 # License
 
